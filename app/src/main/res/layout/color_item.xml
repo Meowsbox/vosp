@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/selected_checkmark"
+        android:layout_width="match_parent"
+        android:visibility="invisible"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:scaleType="fitXY"
+        android:src="@drawable/ic_check_white_24dp"
+        android:layout_margin="@dimen/color_item_selected_check_margins" />
+
+</merge>

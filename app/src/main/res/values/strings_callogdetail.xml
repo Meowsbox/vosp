@@ -1,0 +1,25 @@
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- A nicely formatted call duration displayed when viewing call details for duration less than 1 minute. For example "28 sec" -->
+    <string name="callDetailsShortDurationFormat"><xliff:g id="seconds" example="28">%s</xliff:g> sec</string>
+
+    <!-- Label for action to block a number. [CHAR LIMIT=48] -->
+    <string name="action_block_number">Block number</string>
+    <!-- Option displayed in context menu to copy long pressed phone number. [CHAR LIMIT=48] -->
+    <string name="action_copy_number_text">Copy number</string>
+    <!-- Label for action to edit a number before calling it. [CHAR LIMIT=48] -->
+    <string name="action_edit_number_before_call">Edit number before call</string>
+    <!-- Text for a menu item to report a call as having been incorrectly identified. [CHAR LIMIT=48] -->
+    <string name="action_report_number">Report inaccurate number</string>
+    <!-- String describing the phone icon on a call log list item. When tapped, it will place a
+         call to the number represented by that call log entry. [CHAR LIMIT=NONE]-->
+    <string name="description_call_log_call_action">Call</string>
+
+</resources>

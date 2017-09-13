@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<resources>
+    <dimen name="color_item_large">64dp</dimen>
+    <dimen name="color_item_small">48dp</dimen>
+    <dimen name="color_item_margins_large">8dp</dimen>
+    <dimen name="color_item_margins_small">4dp</dimen>
+    <dimen name="color_item_selected_check_margins">8dp</dimen>
+
+    <dimen name="color_preference_color_view_size">32dp</dimen>
+    <dimen name="color_preference_disabled_outline_size">2dp</dimen>
+</resources>

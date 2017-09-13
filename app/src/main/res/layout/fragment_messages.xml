@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:animateLayoutChanges="true"
+    android:clipChildren="false"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    android:orientation="vertical">
+
+    <ListView
+        android:id="@+id/lvMessages"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:animateLayoutChanges="true"
+        android:clipToPadding="false"
+        android:divider="@null"
+        android:fadingEdge="none"/>
+
+</LinearLayout>
+

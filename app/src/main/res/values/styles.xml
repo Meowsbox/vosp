@@ -1,0 +1,19 @@
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="android:Theme.Material.Light.Dialog">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+    </style>
+
+</resources>

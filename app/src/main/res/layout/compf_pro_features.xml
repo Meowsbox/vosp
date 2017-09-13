@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<LinearLayout android:id="@+id/llListItem"
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/llItemCardView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:nextFocusLeft="@+id/quick_contact_photo"
+        android:nextFocusRight="@+id/call_back_action"
+        android:orientation="vertical"
+        android:paddingBottom="@dimen/call_log_outer_margin"
+        android:paddingEnd="@dimen/call_log_outer_margin"
+        android:paddingStart="@dimen/call_log_start_margin"
+        android:paddingTop="@dimen/call_log_outer_margin">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/ivIcon"
+                android:layout_width="@dimen/contact_photo_size"
+                android:layout_height="@dimen/contact_photo_size"
+                android:layout_gravity="top"
+                android:focusable="true"
+                android:nextFocusRight="@id/primary_action_view"
+                android:paddingTop="2dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="4dp"
+                android:paddingBottom="4dp"
+                android:gravity="center_vertical"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentLeft="true"
+                    android:layout_alignParentTop="true"
+                    android:layout_marginLeft="4dp"
+                    android:focusable="true"
+                    android:fontFamily="sans-serif"
+                    android:paddingLeft="4dp"
+                    android:text="text"
+                    android:textColor="@color/primary_text_color"
+                    android:textSize="8pt"/>
+
+                <TextView
+                    android:id="@+id/tvValue2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentLeft="true"
+                    android:layout_alignParentTop="true"
+                    android:layout_marginLeft="4dp"
+                    android:focusable="true"
+                    android:fontFamily="sans-serif"
+                    android:paddingLeft="4dp"
+                    android:text="text"
+                    android:textColor="@color/secondary_text_color"
+                    android:textSize="6pt"
+                    android:visibility="gone"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:visibility="gone"
+            android:paddingTop="4dp"
+            android:paddingLeft="4dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:focusable="true"
+                android:fontFamily="sans-serif"
+                android:text="text"
+                android:textColor="@color/secondary_text_color"
+                android:textSize="6pt"/>
+
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>
+

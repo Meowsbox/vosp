@@ -1,0 +1,45 @@
+From 85ba8bf926fdb20fff403bc1e5a3653ea4297855 Mon Sep 17 00:00:00 2001
+From: Darryl Hon <23092482+DarrylHon@users.noreply.github.com>
+Date: Fri, 8 Sep 2017 12:18:40 -0700
+Subject: [PATCH] BUGFIX: localref leak Changeset 5563
+
+---
+ pjlib/src/pj/guid_android.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/pjlib/src/pj/guid_android.c b/pjlib/src/pj/guid_android.c
+index 7d2b0db..1b9b291 100644
+--- a/pjlib/src/pj/guid_android.c
++++ b/pjlib/src/pj/guid_android.c
+@@ -69,8 +69,10 @@ PJ_DEF(pj_str_t*) pj_generate_unique_string(pj_str_t *str)
+     if (!jni_env)
+         goto on_error;
+ 
+-    uuid_class = (jclass)(*jni_env)->NewGlobalRef(jni_env,
+-                 (*jni_env)->FindClass(jni_env, "java/util/UUID"));
++//    uuid_class = (jclass)(*jni_env)->NewGlobalRef(jni_env,
++//                 (*jni_env)->FindClass(jni_env, "java/util/UUID"));
++    //BUGFIX: global ref leak Changeset 5563
++    uuid_class = (*jni_env)->FindClass(jni_env, "java/util/UUID");
+     if (uuid_class == 0)
+         goto on_error;
+ 
+@@ -106,6 +108,10 @@ PJ_DEF(pj_str_t*) pj_generate_unique_string(pj_str_t *str)
+     pj_strncpy(str, &native_str, PJ_GUID_STRING_LENGTH);
+ 
+     (*jni_env)->ReleaseStringUTFChars(jni_env, uuid_string, native_string);
++    //BUGFIX: localref leak Changeset 5563
++    (*jni_env)->DeleteLocalRef(jni_env, javaUuid);
++    (*jni_env)->DeleteLocalRef(jni_env, uuid_class);
++    (*jni_env)->DeleteLocalRef(jni_env, uuid_string);
+     detach_jvm(attached);
+ 
+     return str;
+@@ -115,3 +121,4 @@ on_error:
+     detach_jvm(attached);
+     return NULL;
+ }
++
+-- 
+2.9.0.windows.1
+

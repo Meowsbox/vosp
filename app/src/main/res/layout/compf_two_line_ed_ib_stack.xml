@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/ivPrem"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:src="@drawable/cornerflag"
+        android:visibility="gone"/>
+
+    <RelativeLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:orientation="vertical"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp">
+
+        <TextView
+            android:id="@+id/tvName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentTop="true"
+            android:fontFamily="sans-serif"
+            android:text="Name:"
+            android:textColor="@color/primary_text_color"
+            android:textSize="8pt"/>
+
+        <LinearLayout
+            android:id="@+id/incrementControls"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/ibDec"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/ic_remove_black_24dp"
+                android:padding="4dp"/>
+
+            <EditText
+                android:id="@+id/etValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="#00000000"
+                android:fontFamily="sans-serif-thin"
+                android:gravity="center"
+                android:imeOptions="actionDone"
+                android:maxLines="1"
+                android:minWidth="16dp"
+                android:selectAllOnFocus="true"
+                android:singleLine="true"
+                android:text="00"
+                android:textColor="@color/primary_text_color"
+                android:textSize="6pt"/>
+
+            <ImageButton
+                android:id="@+id/ibInc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:background="@drawable/ic_add_black_24dp"
+                android:padding="4dp"/>
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/ibHelp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="8dp"
+            android:layout_toLeftOf="@id/incrementControls"
+            android:visibility="gone"/>
+
+    </RelativeLayout>
+</RelativeLayout>

@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest package="com.meowsbox.vosp"
+          xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!--<uses-permission android:name="android.permission.CAMERA"/>-->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS"/>
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.READ_LOGS"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission android:name="android.permission.WRITE_CONTACTS"/>
+    <uses-permission android:name="android.permission.READ_CALL_LOG"/>
+    <uses-permission android:name="android.permission.WRITE_CALL_LOG"/>
+    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
+    <uses-permission android:name="android.permission.READ_SYNC_SETTINGS"/>
+    <uses-permission android:name="android.permission.CALL_PHONE"/>
+    <uses-permission android:name="android.permission.READ_SMS"/>
+    <uses-permission android:name="android.permission.WRITE_SMS"/>
+    <!--<uses-permission android:name="android.permission.CALL_PRIVILEGED"/>-->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.PREVENT_POWER_KEY"/>
+    <uses-permission android:name="com.android.vending.BILLING"/>
+    <uses-permission android:name="android.permission.DUMP"/>
+
+    <application
+        android:name=".DialerApplication"
+        android:allowBackup="true"
+        android:clearTaskOnLaunch="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:launchMode="singleTask"
+        android:supportsRtl="true"
+        android:theme="@style/DialtactsActivityTheme">
+        <activity android:name=".DialtactsActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <action android:name="android.intent.action.DIAL"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+
+                <data android:scheme="tel"/>
+            </intent-filter>
+        </activity>
+
+        <activity-alias
+            android:name=".alt_launcher_2"
+            android:enabled="false"
+            android:icon="@mipmap/ic_launcher2"
+            android:targetActivity=".DialtactsActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".alt_launcher_3"
+            android:enabled="false"
+            android:icon="@mipmap/ic_launcher3"
+            android:targetActivity=".DialtactsActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".alt_launcher_4"
+            android:enabled="false"
+            android:icon="@mipmap/ic_launcher_phone"
+            android:targetActivity=".DialtactsActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity
+            android:name=".android.dialer.callog.CallLogActivity"
+            android:icon="@mipmap/ic_launcher_phone"
+            android:label="@string/call_log_activity_title"
+            android:theme="@style/DialtactsThemeWithoutActionBarOverlay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+
+                <data android:mimeType="vnd.android.cursor.dir/calls"/>
+            </intent-filter>
+        </activity>
+        <activity android:name=".InCallActivity"/>
+        <activity
+            android:name=".android.dialer.callog.CallDetailActivity"
+            android:icon="@mipmap/ic_launcher_phone"
+            android:label="@string/callDetailTitle"
+            android:theme="@style/CallDetailActivityTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+
+                <data android:mimeType="vnd.android.cursor.item/calls"/>
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.SipService"
+            android:enabled="true"
+            android:exported="true"
+            android:process=":SipServiceProcess">
+        </service>
+
+        <receiver
+            android:name=".service.receivers.NotificationReceiver"
+            android:process=":SipServiceProcess"/>
+        <receiver
+            android:name=".service.receivers.OutgoingCallReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:process=":SipServiceProcess">
+            <intent-filter>
+                <action android:name="android.intent.action.NEW_OUTGOING_CALL"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.meowsbox.vosp.dialerutil"/>
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".service.receivers.NetworkStatusReceiver"
+            android:enabled="true"
+            android:process=":SipServiceProcess">
+        </receiver>
+        <receiver
+            android:name="com.meowsbox.internal.siptest.PjSipTimerWrapper"
+            android:enabled="true"
+            android:process=":SipServiceProcess">
+        </receiver>
+        <receiver
+            android:name=".service.receivers.DozeStatusReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:process=":SipServiceProcess">
+        </receiver>
+        <receiver
+            android:name=".service.receivers.ScreenStateReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:process=":SipServiceProcess">
+        </receiver>
+
+        <activity android:name=".SettingsActivity">
+        </activity>
+        <activity android:name=".LicensesActivity"/>
+
+        <receiver
+            android:name=".service.receivers.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".service.receivers.PackageReplacedReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".service.receivers.ServiceStateReceiver"
+            android:enabled="true"
+            android:exported="true">
+        </receiver>
+
+        <activity android:name=".service.licensing.GoogleBillingHelper">
+        </activity>
+
+        <provider
+            android:name=".service.providers.SupportAttachmentProvider"
+            android:authorities="com.meowsbox.vosp.exportProvider"
+            android:enabled="true"
+            android:grantUriPermissions="true"
+            android:process=":SipServiceProcess">
+        </provider>
+    </application>
+
+</manifest>

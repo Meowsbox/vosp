@@ -1,0 +1,1368 @@
+From e63cc338cdf810a533d490e35b0e4d5a12010fac Mon Sep 17 00:00:00 2001
+From: Darryl Hon <23092482+DarrylHon@users.noreply.github.com>
+Date: Fri, 8 Sep 2017 17:40:23 -0700
+Subject: [PATCH] convert local timer to custom java scheduling api add
+ configurable tcpKaInterval add native thread detachment on terminate bugfix
+ sched timer even with negative expiry
+
+---
+ pjlib/src/pj/os_core_unix.c       |  28 +-
+ pjlib/src/pj/timer.c              | 926 +++++++++++++++++++++++++-------------
+ pjsip/include/pjsua2/endpoint.hpp |   2 +
+ pjsip/src/pjsip-ua/sip_reg.c      |   5 +-
+ pjsip/src/pjsua2/endpoint.cpp     |   5 +
+ 5 files changed, 652 insertions(+), 314 deletions(-)
+
+diff --git a/pjlib/src/pj/os_core_unix.c b/pjlib/src/pj/os_core_unix.c
+index 0fe05eb..ef0f022 100644
+--- a/pjlib/src/pj/os_core_unix.c
++++ b/pjlib/src/pj/os_core_unix.c
+@@ -53,19 +53,21 @@
+ #  define PJ_JNI_HAS_JNI_ONLOAD    PJ_ANDROID
+ #endif
+ 
+-#if defined(PJ_JNI_HAS_JNI_ONLOAD) && PJ_JNI_HAS_JNI_ONLOAD != 0
++//#if defined(PJ_JNI_HAS_JNI_ONLOAD) && PJ_JNI_HAS_JNI_ONLOAD != 0
+ 
+ #include <jni.h>
++#include <android/log.h>
+ 
+ JavaVM *pj_jni_jvm = NULL;
+ 
+ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
+ {
++    __android_log_print(ANDROID_LOG_DEBUG, "JNI_OnLoad","JNI_OnLoad");
+     pj_jni_jvm = vm;
+-    
++    if (!pj_jni_jvm) __android_log_print(ANDROID_LOG_DEBUG, "JNI_OnLoad","pj_jni_jvm NULL");
+     return JNI_VERSION_1_4;
+ }
+-#endif
++//#endif
+ 
+ struct pj_thread_t
+ {
+@@ -507,7 +509,7 @@ pj_status_t pj_thread_init(void)
+ #endif
+ }
+ 
+-#if PJ_HAS_THREADS
++//#if PJ_HAS_THREADS
+ /*
+  * thread_main()
+  *
+@@ -515,6 +517,7 @@ pj_status_t pj_thread_init(void)
+  */
+ static void *thread_main(void *param)
+ {
++//    extern JNIEnv *jni_env;
+     pj_thread_t *rec = (pj_thread_t*)param;
+     void *result;
+     pj_status_t rc;
+@@ -535,17 +538,27 @@ static void *thread_main(void *param)
+ 	pj_mutex_unlock(rec->suspended_mutex);
+     }
+ 
+-    PJ_LOG(6,(rec->obj_name, "Thread started"));
++    PJ_LOG(2,(rec->obj_name, "Thread started"));
++
++//    JNIEnv *jni_env;
++//    jint b = (*pj_jni_jvm)->GetEnv(pj_jni_jvm, (void **) jni_env, JNI_VERSION_1_4);
++//    jint a = (*pj_jni_jvm)->AttachCurrentThread(pj_jni_jvm, jni_env, 0);
++//    PJ_LOG(2,(rec->obj_name, "pj_jni_jvm %d",a));
++//    PJ_LOG(2,(rec->obj_name, "jni_env %d",b));
++//    if (!pj_jni_jvm) PJ_LOG(2,(rec->obj_name, "pj_jni_jvm NULL"));
++//    if (!jni_env) PJ_LOG(2,(rec->obj_name, "jni_env NULL"));
+ 
+     /* Call user's entry! */
+     result = (void*)(long)(*rec->proc)(rec->arg);
+ 
+     /* Done. */
+-    PJ_LOG(6,(rec->obj_name, "Thread quitting"));
++    PJ_LOG(2,(rec->obj_name, "Thread quitting"));
++
++    (*pj_jni_jvm)->DetachCurrentThread(pj_jni_jvm);
+ 
+     return result;
+ }
+-#endif
++//#endif
+ 
+ /*
+  * pj_thread_create(...)
+@@ -1952,3 +1965,4 @@ PJ_DEF(int) pj_run_app(pj_main_func_ptr main_func, int argc, char *argv[],
+     return (*main_func)(argc, argv);
+ }
+ #endif
++
+diff --git a/pjlib/src/pj/timer.c b/pjlib/src/pj/timer.c
+index 7fd08fa..d18dc86 100644
+--- a/pjlib/src/pj/timer.c
++++ b/pjlib/src/pj/timer.c
+@@ -36,28 +36,29 @@
+ #include <pj/lock.h>
+ #include <pj/log.h>
+ #include <pj/rand.h>
++#include <jni.h>
++#include <android/log.h>
++#include "../../include/pj/types.h"
+ 
+-#define THIS_FILE	"timer.c"
+-
+-#define HEAP_PARENT(X)	(X == 0 ? 0 : (((X) - 1) / 2))
+-#define HEAP_LEFT(X)	(((X)+(X))+1)
++#define THIS_FILE    "timer.c"
+ 
++#define HEAP_PARENT(X)    (X == 0 ? 0 : (((X) - 1) / 2))
++#define HEAP_LEFT(X)    (((X)+(X))+1)
+ 
+ #define DEFAULT_MAX_TIMED_OUT_PER_POLL  (64)
+ 
+-enum
+-{
+-    F_DONT_CALL = 1,
+-    F_DONT_ASSERT = 2,
+-    F_SET_ID = 4
+-};
++#ifndef NULL
++#define NULL 0
++#endif
+ 
++enum {
++    F_DONT_CALL = 1, F_DONT_ASSERT = 2, F_SET_ID = 4
++};
+ 
+ /**
+  * The implementation of timer heap.
+  */
+-struct pj_timer_heap_t
+-{
++struct pj_timer_heap_t {
+     /** Pool from which the timer heap resize will get the storage from */
+     pj_pool_t *pool;
+ 
+@@ -107,53 +108,274 @@ struct pj_timer_heap_t
+ 
+ };
+ 
++/*
++ * Magics ************************************************************
++ */
+ 
++#define HEAP_ARRAY_MAX 128
+ 
+-PJ_INLINE(void) lock_timer_heap( pj_timer_heap_t *ht )
+-{
++extern JavaVM *pj_jni_jvm;
++JNIEnv *jni_env;
++static jclass jclass_sip_timer_wrapper = NULL;
++static jmethodID get_instance_method = NULL;
++static jobject instance_object = NULL; // global ref cache
++static jclass object_class = NULL;
++static jmethodID jmid_schedule = NULL; // opaque method pointer
++static jmethodID jmid_cancel = NULL; // opaque method pointer
++
++struct pj_timer_heap_t *heapArray[HEAP_ARRAY_MAX]; // global ref to all heaps
++
++int findHeapIndex(struct pj_timer_heap_t *r) {
++    int i;
++    for (i = 0; i <= HEAP_ARRAY_MAX; ++i) {
++	if (heapArray[i] == r)
++	    return i;
++    }
++    return -1;
++}
++
++int findHeapArrayNextFree() {
++    int i;
++    for (i = 0; i <= HEAP_ARRAY_MAX; ++i) {
++	if (!heapArray[i])
++	    return i;
++    }
++    return -1;
++}
++
++void destroyHeapArray() {
++    int i;
++    for (i = 0; i < HEAP_ARRAY_MAX; ++i) {
++	free(heapArray[i]);
++    }
++}
++
++static pj_bool_t attach_jvm(JNIEnv **jni_env) {
++    if ((*pj_jni_jvm)->GetEnv(pj_jni_jvm, (void **) jni_env, JNI_VERSION_1_4) < 0) {
++	if ((*pj_jni_jvm)->AttachCurrentThread(pj_jni_jvm, jni_env, 0) < 0) {
++	    jni_env = 0;
++	    return PJ_FALSE;
++	}
++	return PJ_TRUE;
++    }
++
++    return PJ_FALSE;
++
++}
++
++#define detach_jvm(attached) if (attached) (*pj_jni_jvm)->DetachCurrentThread(pj_jni_jvm);
++
++static void pjlog(const char *tag, const char *text) {
++    PJ_LOG(6, (tag, text));
++}
++
++/**
++ * Imporant that the first call be made from the main thread of the library loader otherwise FindClass may fail
++ */
++void lookupJavaMethods() {
++//    if (instance_object && get_instance_method && object_class && jmid_schedule && jmid_cancel)
++//	return; // skip
++    pjlog("timer_schedule_wrapper", "lookupJavaMethods");
++
++    // lookup class - convert to globalref, static ok
++    if (!jclass_sip_timer_wrapper) {
++	jclass local_static_class = (*jni_env)->FindClass(jni_env, "com/meowsbox/internal/siptest/PjSipTimerWrapper");
++	jclass_sip_timer_wrapper = (jclass) (*jni_env)->NewGlobalRef(jni_env, local_static_class);
++	(*jni_env)->DeleteLocalRef(jni_env, local_static_class);
++	PJ_LOG(6, (THIS_FILE, "static_class nOK"));
++    }
++    if (!jclass_sip_timer_wrapper) {
++	PJ_LOG(3, (THIS_FILE, "static_class 0"));
++	if ((*jni_env)->ExceptionCheck(jni_env))
++	    (*jni_env)->ExceptionClear(jni_env);
++	return;
++    }
++
++    // lookup singleton getInstance() method - static one time ok
++    if (!get_instance_method) {
++	get_instance_method = ((*jni_env))->GetStaticMethodID(jni_env, jclass_sip_timer_wrapper, "getInstance", "()Lcom/meowsbox/internal/siptest/PjSipTimerWrapper;");
++	PJ_LOG(6, (THIS_FILE, "get_instance_method nOK"));
++    }
++    if (!get_instance_method) {
++	PJ_LOG(3, (THIS_FILE, "get_instance_method 0"));
++	if ((*jni_env)->ExceptionCheck(jni_env))
++	    (*jni_env)->ExceptionClear(jni_env);
++	return;
++    }
++
++    // retrieve instance - convert to globalref, static ok
++    if (!instance_object) {
++	jobject local_instance_object = (*jni_env)->CallStaticObjectMethod(jni_env, jclass_sip_timer_wrapper, get_instance_method);
++	instance_object = (jclass) (*jni_env)->NewGlobalRef(jni_env, local_instance_object);
++	(*jni_env)->DeleteLocalRef(jni_env, local_instance_object);
++	PJ_LOG(6, (THIS_FILE, "CallStaticObjectMethod nOK"));
++    }
++    if (!instance_object) {
++	PJ_LOG(3, (THIS_FILE, "CallStaticObjectMethod 0"));
++	if ((*jni_env)->ExceptionCheck(jni_env))
++	    (*jni_env)->ExceptionClear(jni_env);
++	return;
++    }
++
++    // lookup object class - convert to globalref, static ok
++    if (!object_class) {
++	jclass local_object_class = (*jni_env)->GetObjectClass(jni_env, instance_object);
++	object_class = (jclass) (*jni_env)->NewGlobalRef(jni_env, local_object_class);
++	(*jni_env)->DeleteLocalRef(jni_env, local_object_class);
++	PJ_LOG(6, (THIS_FILE, "object_class nOK"));
++    }
++    if (!object_class) {
++	PJ_LOG(3, (THIS_FILE, "object_class 0"));
++	if ((*jni_env)->ExceptionCheck(jni_env))
++	    (*jni_env)->ExceptionClear(jni_env);
++	return;
++    }
++
++    // lookup method - static
++    if (!jmid_schedule) {
++	jmid_schedule = ((*jni_env))->GetMethodID(jni_env, object_class, "schedule", "(III)I");
++	PJ_LOG(6, (THIS_FILE, "jmid_schedule nOK"));
++    }
++    if (!jmid_schedule) {
++	PJ_LOG(3, (THIS_FILE, "jmid_schedule 0"));
++	if ((*jni_env)->ExceptionCheck(jni_env))
++	    (*jni_env)->ExceptionClear(jni_env);
++	return;
++    }
++
++    // lookup method - static
++    if (!jmid_cancel) {
++	jmid_cancel = ((*jni_env))->GetMethodID(jni_env, object_class, "cancel", "(II)I");
++	PJ_LOG(6, (THIS_FILE, "jmid_cancel nOK"));
++    }
++    if (!jmid_cancel) {
++	PJ_LOG(3, (THIS_FILE, "jmid_cancel 0"));
++	if ((*jni_env)->ExceptionCheck(jni_env))
++	    (*jni_env)->ExceptionClear(jni_env);
++	return;
++    }
++}
++
++void clearJavaMethodPointers() {
++    pjlog("timer_schedule_wrapper", "clearJavaMethodPointers");
++    (*jni_env)->DeleteGlobalRef(jni_env, jclass_sip_timer_wrapper);
++    jclass_sip_timer_wrapper = NULL;
++    get_instance_method = NULL;
++    (*jni_env)->DeleteGlobalRef(jni_env, instance_object);
++    instance_object = NULL;
++    (*jni_env)->DeleteGlobalRef(jni_env, object_class);
++    object_class = NULL;
++
++    jmid_schedule = NULL;
++    jmid_cancel = NULL;
++}
++
++/**
++ * Schedule actual external alarm with JVM
++ */
++int timer_schedule_wrapper(int heapIndex, int entryId, int time) {
++    pjlog("timer_schedule_wrapper", "begin");
++
++    // attach thread to JVM
++    pj_bool_t attached = attach_jvm(&jni_env);
++
++    if (!jni_env) { // should never happen
++	pjlog("timer_schedule_wrapper", "jni_env 2NULL");
++	return 0;
++    }
++
++    lookupJavaMethods();
++
++    jint resultb = (*jni_env)->CallIntMethod(jni_env, instance_object, jmid_schedule, heapIndex, entryId, time);
++
++    pjlog("timer_schedule_wrapper", "end");
++
++//    detach_jvm(attached);
++
++    return resultb;
++
++}
++;
++
++/**
++ * Cancel previously scheduled alarm with JVM
++ */
++int timer_cancel_wrapper(int heapIndex, int entryId) {
++    pjlog("timer_cancel_wrapper", "begin");
++
++    // attach thread to JVM
++    pj_bool_t attached = attach_jvm(&jni_env);
++
++    if (!jni_env) { // should never happen
++	pjlog("timer_cancel_wrapper", "jni_env 2NULL");
++	return 0;
++    }
++
++    lookupJavaMethods();
++
++    jint resultb = (*jni_env)->CallIntMethod(jni_env, instance_object, jmid_cancel, heapIndex, entryId);
++
++    pjlog("timer_cancel_wrapper", "end");
++
++//    detach_jvm(attached);
++
++    return resultb;
++}
++;
++
++JNIEXPORT void JNICALL
++Java_com_meowsbox_internal_siptest_PjSipTimerWrapper_pjsip_1timer_1fire(JNIEnv *je, jobject jo, jint jh, jint jt) {
++    pjlog("ext_timer_fire", "FIRE");
++    ext_timer_fire(jh, jt);
++}
++
++//JNIEXPORT jint JNICALL
++//JNI_OnLoad(JavaVM *pjvm, void *reserved) {
++//    pj_jni_jvm = pjvm;
++//    (*pj_jni_jvm)->GetEnv(pj_jni_jvm, (void **) jni_env, JNI_VERSION_1_4);
++//}
++
++/*
++ * Magic End ************************************************************
++ */
++
++PJ_INLINE(void) lock_timer_heap(pj_timer_heap_t *ht) {
+     if (ht->lock) {
+ 	pj_lock_acquire(ht->lock);
+     }
+ }
+ 
+-PJ_INLINE(void) unlock_timer_heap( pj_timer_heap_t *ht )
+-{
++PJ_INLINE(void) unlock_timer_heap(pj_timer_heap_t *ht) {
+     if (ht->lock) {
+ 	pj_lock_release(ht->lock);
+     }
+ }
+ 
+-
+-static void copy_node( pj_timer_heap_t *ht, pj_size_t slot, 
+-		       pj_timer_entry *moved_node )
+-{
++static void copy_node(pj_timer_heap_t *ht, pj_size_t slot, pj_timer_entry *moved_node) {
+     PJ_CHECK_STACK();
+ 
+     // Insert <moved_node> into its new location in the heap.
+     ht->heap[slot] = moved_node;
+-    
++
+     // Update the corresponding slot in the parallel <timer_ids_> array.
+-    ht->timer_ids[moved_node->_timer_id] = (int)slot;
++    ht->timer_ids[moved_node->_timer_id] = (int) slot;
+ }
+ 
+-static pj_timer_id_t pop_freelist( pj_timer_heap_t *ht )
+-{
++static pj_timer_id_t pop_freelist(pj_timer_heap_t *ht) {
+     // We need to truncate this to <int> for backwards compatibility.
+     pj_timer_id_t new_id = ht->timer_ids_freelist;
+-    
++
+     PJ_CHECK_STACK();
+ 
+     // The freelist values in the <timer_ids_> are negative, so we need
+     // to negate them to get the next freelist "pointer."
+-    ht->timer_ids_freelist =
+-	-ht->timer_ids[ht->timer_ids_freelist];
+-    
++    ht->timer_ids_freelist = -ht->timer_ids[ht->timer_ids_freelist];
++
+     return new_id;
+-    
++
+ }
+ 
+-static void push_freelist (pj_timer_heap_t *ht, pj_timer_id_t old_id)
+-{
++static void push_freelist(pj_timer_heap_t *ht, pj_timer_id_t old_id) {
+     PJ_CHECK_STACK();
+ 
+     // The freelist values in the <timer_ids_> are negative, so we need
+@@ -162,223 +384,225 @@ static void push_freelist (pj_timer_heap_t *ht, pj_timer_id_t old_id)
+     ht->timer_ids_freelist = old_id;
+ }
+ 
+-
+-static void reheap_down(pj_timer_heap_t *ht, pj_timer_entry *moved_node,
+-                        size_t slot, size_t child)
+-{
++static void reheap_down(pj_timer_heap_t *ht, pj_timer_entry *moved_node, size_t slot, size_t child) {
+     PJ_CHECK_STACK();
+ 
+     // Restore the heap property after a deletion.
+-    
+-    while (child < ht->cur_size)
+-    {
++
++    while (child < ht->cur_size) {
+ 	// Choose the smaller of the two children.
+-	if (child + 1 < ht->cur_size
+-	    && PJ_TIME_VAL_LT(ht->heap[child + 1]->_timer_value, ht->heap[child]->_timer_value))
++	if (child + 1 < ht->cur_size && PJ_TIME_VAL_LT(ht->heap[child + 1]->_timer_value, ht->heap[child]->_timer_value))
+ 	    child++;
+-	
++
+ 	// Perform a <copy> if the child has a larger timeout value than
+ 	// the <moved_node>.
+-	if (PJ_TIME_VAL_LT(ht->heap[child]->_timer_value, moved_node->_timer_value))
+-        {
+-	    copy_node( ht, slot, ht->heap[child]);
++	if (PJ_TIME_VAL_LT(ht->heap[child]->_timer_value, moved_node->_timer_value)) {
++	    copy_node(ht, slot, ht->heap[child]);
+ 	    slot = child;
+ 	    child = HEAP_LEFT(child);
+-        }
+-	else
++	} else
+ 	    // We've found our location in the heap.
+ 	    break;
+     }
+-    
+-    copy_node( ht, slot, moved_node);
++
++    copy_node(ht, slot, moved_node);
+ }
+ 
+-static void reheap_up( pj_timer_heap_t *ht, pj_timer_entry *moved_node,
+-		       size_t slot, size_t parent)
+-{
++static void reheap_up(pj_timer_heap_t *ht, pj_timer_entry *moved_node, size_t slot, size_t parent) {
+     // Restore the heap property after an insertion.
+-    
+-    while (slot > 0)
+-    {
++
++    while (slot > 0) {
+ 	// If the parent node is greater than the <moved_node> we need
+ 	// to copy it down.
+-	if (PJ_TIME_VAL_LT(moved_node->_timer_value, ht->heap[parent]->_timer_value))
+-        {
++	if (PJ_TIME_VAL_LT(moved_node->_timer_value, ht->heap[parent]->_timer_value)) {
+ 	    copy_node(ht, slot, ht->heap[parent]);
+ 	    slot = parent;
+ 	    parent = HEAP_PARENT(slot);
+-        }
+-	else
++	} else
+ 	    break;
+     }
+-    
++
+     // Insert the new node into its proper resting place in the heap and
+     // update the corresponding slot in the parallel <timer_ids> array.
+     copy_node(ht, slot, moved_node);
+ }
+ 
+-
+-static pj_timer_entry * remove_node( pj_timer_heap_t *ht, size_t slot)
+-{
++static pj_timer_entry *remove_node(pj_timer_heap_t *ht, size_t slot) {
+     pj_timer_entry *removed_node = ht->heap[slot];
+-    
++
++    ht->heap[slot] = NULL;
++
+     // Return this timer id to the freelist.
+-    push_freelist( ht, removed_node->_timer_id );
+-    
++//    push_freelist(ht, removed_node->_timer_id);
++
+     // Decrement the size of the heap by one since we're removing the
+     // "slot"th node.
+     ht->cur_size--;
+-    
++
+     // Set the ID
+     removed_node->_timer_id = -1;
+ 
+-    // Only try to reheapify if we're not deleting the last entry.
+-    
+-    if (slot < ht->cur_size)
+-    {
+-	pj_size_t parent;
+-	pj_timer_entry *moved_node = ht->heap[ht->cur_size];
+-	
+-	// Move the end node to the location being removed and update
+-	// the corresponding slot in the parallel <timer_ids> array.
+-	copy_node( ht, slot, moved_node);
+-	
+-	// If the <moved_node->time_value_> is great than or equal its
+-	// parent it needs be moved down the heap.
+-	parent = HEAP_PARENT (slot);
+-	
+-	if (PJ_TIME_VAL_GTE(moved_node->_timer_value, ht->heap[parent]->_timer_value))
+-	    reheap_down( ht, moved_node, slot, HEAP_LEFT(slot));
+-	else
+-	    reheap_up( ht, moved_node, slot, parent);
+-    }
+-    
++//    // Only try to reheapify if we're not deleting the last entry.
++//
++//    if (slot < ht->cur_size) {
++//	pj_size_t parent;
++//	pj_timer_entry *moved_node = ht->heap[ht->cur_size];
++//
++//	// Move the end node to the location being removed and update
++//	// the corresponding slot in the parallel <timer_ids> array.
++//	copy_node(ht, slot, moved_node);
++//
++//	// If the <moved_node->time_value_> is great than or equal its
++//	// parent it needs be moved down the heap.
++//	parent = HEAP_PARENT(slot);
++//
++//	if (PJ_TIME_VAL_GTE(moved_node->_timer_value, ht->heap[parent]->_timer_value))
++//	    reheap_down(ht, moved_node, slot, HEAP_LEFT(slot));
++//	else
++//	    reheap_up(ht, moved_node, slot, parent);
++//    }
++
+     return removed_node;
+ }
+ 
+-static void grow_heap(pj_timer_heap_t *ht)
+-{
++static void grow_heap(pj_timer_heap_t *ht) {
+     // All the containers will double in size from max_size_
+     size_t new_size = ht->max_size * 2;
+     pj_timer_id_t *new_timer_ids;
+     pj_size_t i;
+-    
++
+     // First grow the heap itself.
+-    
++
+     pj_timer_entry **new_heap = 0;
+-    
+-    new_heap = (pj_timer_entry**) 
+-    	       pj_pool_alloc(ht->pool, sizeof(pj_timer_entry*) * new_size);
+-    memcpy(new_heap, ht->heap, ht->max_size * sizeof(pj_timer_entry*));
++
++    new_heap = (pj_timer_entry **) pj_pool_alloc(ht->pool, sizeof(pj_timer_entry *) * new_size);
++    memcpy(new_heap, ht->heap, ht->max_size * sizeof(pj_timer_entry *));
+     //delete [] this->heap_;
+     ht->heap = new_heap;
+-    
++
++    // clear heap each position
++    int pos;
++    for (pos = 0; pos < new_size; ++pos) {
++	ht->heap[pos] = NULL;
++    }
++
+     // Grow the array of timer ids.
+-    
++
+     new_timer_ids = 0;
+-    new_timer_ids = (pj_timer_id_t*)
+-    		    pj_pool_alloc(ht->pool, new_size * sizeof(pj_timer_id_t));
+-    
+-    memcpy( new_timer_ids, ht->timer_ids, ht->max_size * sizeof(pj_timer_id_t));
+-    
++    new_timer_ids = (pj_timer_id_t *) pj_pool_alloc(ht->pool, new_size * sizeof(pj_timer_id_t));
++
++    memcpy(new_timer_ids, ht->timer_ids, ht->max_size * sizeof(pj_timer_id_t));
++
+     //delete [] timer_ids_;
+     ht->timer_ids = new_timer_ids;
+-    
++
+     // And add the new elements to the end of the "freelist".
+     for (i = ht->max_size; i < new_size; i++)
+ 	ht->timer_ids[i] = -((pj_timer_id_t) (i + 1));
+-    
++
+     ht->max_size = new_size;
+ }
+ 
+-static void insert_node(pj_timer_heap_t *ht, pj_timer_entry *new_node)
+-{
+-    if (ht->cur_size + 2 >= ht->max_size)
+-	grow_heap(ht);
+-    
+-    reheap_up( ht, new_node, ht->cur_size, HEAP_PARENT(ht->cur_size));
++static void insert_node(pj_timer_heap_t *ht, pj_timer_entry *new_node) {
++//    if (ht->cur_size + 2 >= ht->max_size)
++//	grow_heap(ht);
++
++//    reheap_up(ht, new_node, ht->cur_size, HEAP_PARENT(ht->cur_size));
++
++    if (ht->heap[new_node->_timer_id])
++	PJ_LOG(2, (THIS_FILE, "heap slot not empty, possible conflict"));
++
++    // copy node into the heap
++    ht->heap[new_node->_timer_id] = new_node;
+     ht->cur_size++;
+ }
+ 
+-
+-static pj_status_t schedule_entry( pj_timer_heap_t *ht,
+-				   pj_timer_entry *entry, 
+-				   const pj_time_val *future_time )
+-{
+-    if (ht->cur_size < ht->max_size)
+-    {
++static pj_status_t schedule_entry(pj_timer_heap_t *ht, pj_timer_entry *entry, const pj_time_val *future_time) {
++    if (ht->cur_size < ht->max_size) {
+ 	// Obtain the next unique sequence number.
+ 	// Set the entry
+-	entry->_timer_id = pop_freelist(ht);
++//	entry->_timer_id = pop_freelist(ht);
++
++	// grow heap if necessary
++	if (ht->cur_size + 2 >= ht->max_size)
++	    grow_heap(ht);
++
++	// find free slot in heap
++	int slot = -1;
++	int pos;
++	for (pos = 0; pos < ht->max_size; ++pos) {
++	    if (!ht->heap[pos])
++		slot = pos;
++	}
++	if (slot == -1) {
++	    PJ_LOG(2, (THIS_FILE, "no free heap slots"));
++	    return -1; // no free space, or some other error
++	}
++
++	entry->_timer_id = slot;
+ 	entry->_timer_value = *future_time;
+-	insert_node( ht, entry);
++	insert_node(ht, entry);
++
++//	PJ_LOG(2, (THIS_FILE, "Slots used: %d of %d",ht->cur_size,ht->max_size));
++
+ 	return 0;
+-    }
+-    else
++    } else
+ 	return -1;
+ }
+ 
++static int cancel(pj_timer_heap_t *ht, pj_timer_entry *entry, unsigned flags) {
++    long timer_node_slot;
+ 
+-static int cancel( pj_timer_heap_t *ht, 
+-		   pj_timer_entry *entry, 
+-		   unsigned flags)
+-{
+-  long timer_node_slot;
+-
+-  PJ_CHECK_STACK();
+-
+-  // Check to see if the timer_id is out of range
+-  if (entry->_timer_id < 0 || (pj_size_t)entry->_timer_id > ht->max_size) {
+-    entry->_timer_id = -1;
+-    return 0;
+-  }
++    PJ_CHECK_STACK();
+ 
+-  timer_node_slot = ht->timer_ids[entry->_timer_id];
++    // Check to see if the timer_id is out of range
++    if (entry->_timer_id < 0 || (pj_size_t) entry->_timer_id > ht->max_size) {
++	entry->_timer_id = -1;
++	return 0;
++    }
+ 
+-  if (timer_node_slot < 0) { // Check to see if timer_id is still valid.
+-    entry->_timer_id = -1;
+-    return 0;
+-  }
++//    timer_node_slot = ht->timer_ids[entry->_timer_id];
++    timer_node_slot = entry->_timer_id;
+ 
+-  if (entry != ht->heap[timer_node_slot])
+-    {
+-      if ((flags & F_DONT_ASSERT) == 0)
+-	  pj_assert(entry == ht->heap[timer_node_slot]);
+-      entry->_timer_id = -1;
+-      return 0;
++    if (timer_node_slot < 0) { // Check to see if timer_id is still valid.
++	entry->_timer_id = -1;
++	return 0;
+     }
+-  else
+-    {
+-      remove_node( ht, timer_node_slot);
+ 
+-      if ((flags & F_DONT_CALL) == 0)
+-        // Call the close hook.
+-	(*ht->callback)(ht, entry);
+-      return 1;
++    if (entry != ht->heap[timer_node_slot]) {
++	if ((flags & F_DONT_ASSERT) == 0)
++	    pj_assert(entry == ht->heap[timer_node_slot]);
++	entry->_timer_id = -1;
++	return 0;
++    } else {
++	//TODO JNI call to cancel with heapIndex,timerId
++	int heapIndex = findHeapIndex(ht);
++	timer_cancel_wrapper(heapIndex, (int) entry->_timer_id);
++
++	remove_node(ht, timer_node_slot);
++	if ((flags & F_DONT_CALL) == 0)
++	    // Call the close hook.
++	    (*ht->callback)(ht, entry);
++	return 1;
+     }
+ }
+ 
+-
+ /*
+  * Calculate memory size required to create a timer heap.
+  */
+-PJ_DEF(pj_size_t) pj_timer_heap_mem_size(pj_size_t count)
+-{
++PJ_DEF(pj_size_t) pj_timer_heap_mem_size(pj_size_t count) {
+     return /* size of the timer heap itself: */
+-           sizeof(pj_timer_heap_t) + 
+-           /* size of each entry: */
+-           (count+2) * (sizeof(pj_timer_entry*)+sizeof(pj_timer_id_t)) +
+-           /* lock, pool etc: */
+-           132;
++    sizeof(pj_timer_heap_t) +
++    /* size of each entry: */
++    (count + 2) * (sizeof(pj_timer_entry*) + sizeof(pj_timer_id_t)) +
++    /* lock, pool etc: */
++    132;
+ }
+ 
+ /*
+  * Create a new timer heap.
+  */
+-PJ_DEF(pj_status_t) pj_timer_heap_create( pj_pool_t *pool,
+-					  pj_size_t size,
+-                                          pj_timer_heap_t **p_heap)
+-{
++PJ_DEF(pj_status_t) pj_timer_heap_create(pj_pool_t *pool, pj_size_t size, pj_timer_heap_t **p_heap) {
+     pj_timer_heap_t *ht;
+     pj_size_t i;
+ 
+@@ -392,7 +616,8 @@ PJ_DEF(pj_status_t) pj_timer_heap_create( pj_pool_t *pool,
+     /* Allocate timer heap data structure from the pool */
+     ht = PJ_POOL_ALLOC_T(pool, pj_timer_heap_t);
+     if (!ht)
+-        return PJ_ENOMEM;
++	return
++	PJ_ENOMEM;
+ 
+     /* Initialize timer heap sizes */
+     ht->max_size = size;
+@@ -406,92 +631,110 @@ PJ_DEF(pj_status_t) pj_timer_heap_create( pj_pool_t *pool,
+     ht->auto_delete_lock = 0;
+ 
+     // Create the heap array.
+-    ht->heap = (pj_timer_entry**)
+-    	       pj_pool_alloc(pool, sizeof(pj_timer_entry*) * size);
++    ht->heap = (pj_timer_entry **) pj_pool_alloc(pool, sizeof(pj_timer_entry *) * size);
+     if (!ht->heap)
+-        return PJ_ENOMEM;
++	return
++	PJ_ENOMEM;
++
++    // clear heap each position
++    int pos;
++    for (pos = 0; pos < size; ++pos) {
++	ht->heap[pos] = NULL;
++    }
+ 
+     // Create the parallel
+-    ht->timer_ids = (pj_timer_id_t *)
+-    		    pj_pool_alloc( pool, sizeof(pj_timer_id_t) * size);
++    ht->timer_ids = (pj_timer_id_t *) pj_pool_alloc(pool, sizeof(pj_timer_id_t) * size);
+     if (!ht->timer_ids)
+-        return PJ_ENOMEM;
++	return
++	PJ_ENOMEM;
+ 
+     // Initialize the "freelist," which uses negative values to
+     // distinguish freelist elements from "pointers" into the <heap_>
+     // array.
+-    for (i=0; i<size; ++i)
++    for (i = 0; i < size; ++i)
+ 	ht->timer_ids[i] = -((pj_timer_id_t) (i + 1));
+ 
+     *p_heap = ht;
++
++    // store local reference to pj_timer_heap_t
++    int index = findHeapArrayNextFree();
++    if (index < 0)
++	PJ_LOG(2, (THIS_FILE, "No free slots in HeapArray"));
++    heapArray[index] = ht;
++//    PJ_LOG(2, (THIS_FILE, "Heap added: %d @ %p",index,heapArray[index]));
++
+     return PJ_SUCCESS;
+ }
+ 
+-PJ_DEF(void) pj_timer_heap_destroy( pj_timer_heap_t *ht )
+-{
++PJ_DEF(void)
++
++pj_timer_heap_destroy(pj_timer_heap_t *ht) {
++    // remove pointer reference to pj_timer_heap_t in heapArray
++    int index = findHeapIndex(ht);
++    if (index < 0)
++	PJ_LOG(2, (THIS_FILE, "Could not find heap in heapArray to free"));
++    else {
++	heapArray[index] = NULL;
++    }
++
+     if (ht->lock && ht->auto_delete_lock) {
+-        pj_lock_destroy(ht->lock);
+-        ht->lock = NULL;
++	pj_lock_destroy(ht->lock);
++	ht->lock = NULL;
+     }
++
++    // invalidate JVM method pointers
++    clearJavaMethodPointers();
++
+ }
+ 
+-PJ_DEF(void) pj_timer_heap_set_lock(  pj_timer_heap_t *ht,
+-                                      pj_lock_t *lock,
+-                                      pj_bool_t auto_del )
+-{
++PJ_DEF(void)
++
++pj_timer_heap_set_lock(pj_timer_heap_t *ht, pj_lock_t *lock, pj_bool_t auto_del) {
+     if (ht->lock && ht->auto_delete_lock)
+-        pj_lock_destroy(ht->lock);
++	pj_lock_destroy(ht->lock);
+ 
+     ht->lock = lock;
+     ht->auto_delete_lock = auto_del;
+ }
+ 
++PJ_DEF(unsigned)
+ 
+-PJ_DEF(unsigned) pj_timer_heap_set_max_timed_out_per_poll(pj_timer_heap_t *ht,
+-                                                          unsigned count )
+-{
++pj_timer_heap_set_max_timed_out_per_poll(pj_timer_heap_t *ht, unsigned count) {
+     unsigned old_count = ht->max_entries_per_poll;
+     ht->max_entries_per_poll = count;
+     return old_count;
+ }
+ 
+-PJ_DEF(pj_timer_entry*) pj_timer_entry_init( pj_timer_entry *entry,
+-                                             int id,
+-                                             void *user_data,
+-                                             pj_timer_heap_callback *cb )
++PJ_DEF(pj_timer_entry *) pj_timer_entry_init( pj_timer_entry *entry, int id, void *user_data, pj_timer_heap_callback *cb )
+ {
+     pj_assert(entry && cb);
+ 
+-    entry->_timer_id = -1;
+-    entry->id = id;
+-    entry->user_data = user_data;
+-    entry->cb = cb;
+-    entry->_grp_lock = NULL;
++    entry-> _timer_id = -1;
++    entry-> id = id;
++    entry-> user_data = user_data;
++    entry-> cb = cb;
++    entry-> _grp_lock = NULL;
+ 
+-    return entry;
++    return
++    entry;
+ }
+ 
+-PJ_DEF(pj_bool_t) pj_timer_entry_running( pj_timer_entry *entry )
+-{
++PJ_DEF(pj_bool_t) pj_timer_entry_running(pj_timer_entry *entry) {
+     return (entry->_timer_id >= 1);
+ }
+ 
+ #if PJ_TIMER_DEBUG
+ static pj_status_t schedule_w_grp_lock_dbg(pj_timer_heap_t *ht,
+-                                           pj_timer_entry *entry,
+-                                           const pj_time_val *delay,
+-                                           pj_bool_t set_id,
+-                                           int id_val,
+-					   pj_grp_lock_t *grp_lock,
+-					   const char *src_file,
+-					   int src_line)
++	pj_timer_entry *entry,
++	const pj_time_val *delay,
++	pj_bool_t set_id,
++	int id_val,
++	pj_grp_lock_t *grp_lock,
++	const char *src_file,
++	int src_line)
+ #else
+-static pj_status_t schedule_w_grp_lock(pj_timer_heap_t *ht,
+-                                       pj_timer_entry *entry,
+-                                       const pj_time_val *delay,
+-                                       pj_bool_t set_id,
+-                                       int id_val,
+-                                       pj_grp_lock_t *grp_lock)
++
++static pj_status_t schedule_w_grp_lock(pj_timer_heap_t *ht, pj_timer_entry *entry, const pj_time_val *delay, pj_bool_t set_id, int id_val, pj_grp_lock_t *grp_lock)
+ #endif
+ {
+     pj_status_t status;
+@@ -509,10 +752,15 @@ static pj_status_t schedule_w_grp_lock(pj_timer_heap_t *ht,
+ #endif
+     pj_gettickcount(&expires);
+     PJ_TIME_VAL_ADD(expires, *delay);
+-    
++
+     lock_timer_heap(ht);
+     status = schedule_entry(ht, entry, &expires);
+     if (status == PJ_SUCCESS) {
++	//TODO JNI call with heapIndex,timerId,delay
++	int heapIndex = findHeapIndex(ht);
++	pj_uint32_t ft = PJ_TIME_VAL_MSEC(*delay);
++	timer_schedule_wrapper(heapIndex, (int) entry->_timer_id, (int) ft);
++
+ 	if (set_id)
+ 	    entry->id = id_val;
+ 	entry->_grp_lock = grp_lock;
+@@ -525,54 +773,41 @@ static pj_status_t schedule_w_grp_lock(pj_timer_heap_t *ht,
+     return status;
+ }
+ 
+-
+ #if PJ_TIMER_DEBUG
+ PJ_DEF(pj_status_t) pj_timer_heap_schedule_dbg( pj_timer_heap_t *ht,
+-						pj_timer_entry *entry,
+-						const pj_time_val *delay,
+-						const char *src_file,
+-						int src_line)
++	pj_timer_entry *entry,
++	const pj_time_val *delay,
++	const char *src_file,
++	int src_line)
+ {
+     return schedule_w_grp_lock_dbg(ht, entry, delay, PJ_FALSE, 1, NULL,
+-                                   src_file, src_line);
++	    src_file, src_line);
+ }
+ 
+ PJ_DEF(pj_status_t) pj_timer_heap_schedule_w_grp_lock_dbg(
+-						pj_timer_heap_t *ht,
+-						pj_timer_entry *entry,
+-						const pj_time_val *delay,
+-						int id_val,
+-                                                pj_grp_lock_t *grp_lock,
+-						const char *src_file,
+-						int src_line)
++	pj_timer_heap_t *ht,
++	pj_timer_entry *entry,
++	const pj_time_val *delay,
++	int id_val,
++	pj_grp_lock_t *grp_lock,
++	const char *src_file,
++	int src_line)
+ {
+     return schedule_w_grp_lock_dbg(ht, entry, delay, PJ_TRUE, id_val,
+-                                   grp_lock, src_file, src_line);
++	    grp_lock, src_file, src_line);
+ }
+ 
+ #else
+-PJ_DEF(pj_status_t) pj_timer_heap_schedule( pj_timer_heap_t *ht,
+-                                            pj_timer_entry *entry,
+-                                            const pj_time_val *delay)
+-{
++PJ_DEF(pj_status_t) pj_timer_heap_schedule(pj_timer_heap_t *ht, pj_timer_entry *entry, const pj_time_val *delay) {
+     return schedule_w_grp_lock(ht, entry, delay, PJ_FALSE, 1, NULL);
+ }
+ 
+-PJ_DEF(pj_status_t) pj_timer_heap_schedule_w_grp_lock(pj_timer_heap_t *ht,
+-                                                      pj_timer_entry *entry,
+-                                                      const pj_time_val *delay,
+-                                                      int id_val,
+-                                                      pj_grp_lock_t *grp_lock)
+-{
++PJ_DEF(pj_status_t) pj_timer_heap_schedule_w_grp_lock(pj_timer_heap_t *ht, pj_timer_entry *entry, const pj_time_val *delay, int id_val, pj_grp_lock_t *grp_lock) {
+     return schedule_w_grp_lock(ht, entry, delay, PJ_TRUE, id_val, grp_lock);
+ }
+ #endif
+ 
+-static int cancel_timer(pj_timer_heap_t *ht,
+-			pj_timer_entry *entry,
+-			unsigned flags,
+-			int id_val)
+-{
++static int cancel_timer(pj_timer_heap_t *ht, pj_timer_entry *entry, unsigned flags, int id_val) {
+     int count;
+ 
+     PJ_ASSERT_RETURN(ht && entry, PJ_EINVAL);
+@@ -583,7 +818,7 @@ static int cancel_timer(pj_timer_heap_t *ht,
+ 	entry->id = id_val;
+     }
+     if (entry->_grp_lock) {
+-	pj_grp_lock_t *grp_lock = entry->_grp_lock;
++	pj_grp_lock_t * grp_lock = entry->_grp_lock;
+ 	entry->_grp_lock = NULL;
+ 	pj_grp_lock_dec_ref(grp_lock);
+     }
+@@ -592,87 +827,165 @@ static int cancel_timer(pj_timer_heap_t *ht,
+     return count;
+ }
+ 
+-PJ_DEF(int) pj_timer_heap_cancel( pj_timer_heap_t *ht,
+-				  pj_timer_entry *entry)
+-{
++PJ_DEF(int)
++
++pj_timer_heap_cancel(pj_timer_heap_t *ht, pj_timer_entry *entry) {
+     return cancel_timer(ht, entry, 0, 0);
+ }
+ 
+-PJ_DEF(int) pj_timer_heap_cancel_if_active(pj_timer_heap_t *ht,
+-                                           pj_timer_entry *entry,
+-                                           int id_val)
+-{
++PJ_DEF(int) pj_timer_heap_cancel_if_active(pj_timer_heap_t *ht, pj_timer_entry *entry, int id_val) {
+     return cancel_timer(ht, entry, F_SET_ID | F_DONT_ASSERT, id_val);
+ }
+ 
+-PJ_DEF(unsigned) pj_timer_heap_poll( pj_timer_heap_t *ht, 
+-                                     pj_time_val *next_delay )
+-{
+-    pj_time_val now;
+-    unsigned count;
+-
+-    PJ_ASSERT_RETURN(ht, 0);
++PJ_DEF(unsigned) pj_timer_heap_poll(pj_timer_heap_t *ht, pj_time_val *next_delay) {
++    //    pj_time_val now;
++    //    unsigned count;
++    //
++    //    PJ_ASSERT_RETURN(ht, 0);
++    //
++    //    lock_timer_heap(ht);
++    //    if (!ht->cur_size && next_delay) {
++    //	next_delay->sec = next_delay->msec = PJ_MAXINT32;
++    //        unlock_timer_heap(ht);
++    //	return 0;
++    //    }
++    //
++    //    count = 0;
++    //    pj_gettickcount(&now);
++    //
++    //    while ( ht->cur_size &&
++    //	    PJ_TIME_VAL_LTE(ht->heap[0]->_timer_value, now) &&
++    //            count < ht->max_entries_per_poll )
++    //    {
++    //	pj_timer_entry *node = remove_node(ht, 0);
++    //	pj_grp_lock_t *grp_lock;
++    //
++    //	++count;
++    //
++    //	grp_lock = node->_grp_lock;
++    //	node->_grp_lock = NULL;
++    //
++    //	unlock_timer_heap(ht);
++    //
++    //	PJ_RACE_ME(5);
++    //
++    //	if (node->cb)
++    //	    (*node->cb)(ht, node);
++    //
++    //	if (grp_lock)
++    //	    pj_grp_lock_dec_ref(grp_lock);
++    //
++    //	lock_timer_heap(ht);
++    //    }
++    //    if (ht->cur_size && next_delay) {
++    //	*next_delay = ht->heap[0]->_timer_value;
++    //	PJ_TIME_VAL_SUB(*next_delay, now);
++    //	if (next_delay->sec < 0 || next_delay->msec < 0)
++    //	    next_delay->sec = next_delay->msec = 0;
++    //    } else if (next_delay) {
++    //	next_delay->sec = next_delay->msec = PJ_MAXINT32;
++    //    }
++    //    unlock_timer_heap(ht);
++
++    //    next_delay->sec = 300;
++    //    next_delay->msec = 0;
++    next_delay->sec = next_delay->msec = PJ_MAXINT32;
++
++    //    return count;
++    return 0;
++}
+ 
+-    lock_timer_heap(ht);
+-    if (!ht->cur_size && next_delay) {
+-	next_delay->sec = next_delay->msec = PJ_MAXINT32;
+-        unlock_timer_heap(ht);
+-	return 0;
++void ext_timer_fire(int heapIndex, int timer_id) {
++    PJ_LOG(6, ("ext_timer_fire", "%d hi %d ti", heapIndex, timer_id));
++    if (heapIndex < 0) {
++//	PJ_LOG(2, ("ext_timer_fire", "heapIndex < 0"));
++	return;
+     }
+-
+-    count = 0;
+-    pj_gettickcount(&now);
+-
+-    while ( ht->cur_size && 
+-	    PJ_TIME_VAL_LTE(ht->heap[0]->_timer_value, now) &&
+-            count < ht->max_entries_per_poll ) 
+-    {
+-	pj_timer_entry *node = remove_node(ht, 0);
+-	pj_grp_lock_t *grp_lock;
+-
+-	++count;
+-
+-	grp_lock = node->_grp_lock;
+-	node->_grp_lock = NULL;
+-
+-	unlock_timer_heap(ht);
+-
+-	PJ_RACE_ME(5);
+-
+-	if (node->cb)
+-	    (*node->cb)(ht, node);
+-
+-	if (grp_lock)
+-	    pj_grp_lock_dec_ref(grp_lock);
+-
+-	lock_timer_heap(ht);
++    if (!heapArray[heapIndex]) {
++//	PJ_LOG(2, ("ext_timer_fire", "heap NULL"));
++	return;
+     }
+-    if (ht->cur_size && next_delay) {
+-	*next_delay = ht->heap[0]->_timer_value;
+-	PJ_TIME_VAL_SUB(*next_delay, now);
+-	if (next_delay->sec < 0 || next_delay->msec < 0)
+-	    next_delay->sec = next_delay->msec = 0;
+-    } else if (next_delay) {
+-	next_delay->sec = next_delay->msec = PJ_MAXINT32;
++
++    pj_timer_heap_t *ht = heapArray[heapIndex];
++//    PJ_LOG(2, ("ext_timer_fire","*ht"));
++    lock_timer_heap(ht);
++//    PJ_LOG(2, ("ext_timer_fire","lock_timer_heap"));
++//        long timer_node_slot = ht->timer_ids[timer_id];
++    long timer_node_slot = timer_id;
++//    PJ_LOG(2, ("ext_timer_fire","timer_node_slot %d",timer_node_slot));
++    //    if (timer_node_slot < 0) {
++    //        PJ_LOG(2,("ext_timer_fire","timer_node_slot <0, fire aborted"));
++    //        return;
++    //    }
++    if (!ht->heap)
++	PJ_LOG(2, ("ext_timer_fire","heap null"));
++    pj_timer_entry *node = remove_node(ht, timer_node_slot);
++//        pj_timer_entry *node = remove_node(ht, 0);
++//    PJ_LOG(2, ("ext_timer_fire","node"));
++    if (!node) {
++	PJ_LOG(2, ("ext_timer_fire","node NULL"));
++	return;
+     }
++    pj_grp_lock_t *grp_lock;
++    grp_lock = node->_grp_lock;
++//    PJ_LOG(2, ("ext_timer_fire","_grp_lock"));
++    node->_grp_lock = NULL;
+     unlock_timer_heap(ht);
++//    PJ_LOG(2, ("ext_timer_fire","unlock_timer_heap"));
++    //PJ_RACE_ME(5);
++    if (node->cb) {
++//	PJ_LOG(2, ("ext_timer_fire","cb b"));
++	(*node->cb)(ht, node);
++//	PJ_LOG(2, ("ext_timer_fire","cb 2"));
++    }
++    if (grp_lock)
++	pj_grp_lock_dec_ref(grp_lock);
++//    PJ_LOG(2, ("ext_timer_fire","pj_grp_lock_dec_ref"));
+ 
+-    return count;
++//    lock_timer_heap(ht);
++//    pj_time_val now;
++//    pj_gettickcount(&now);
++//    unsigned count;
++
++    /**
++     * This method is externally called in approximation of a scheduled timer expiry. It may be
++     * may be called significantly early or late with no guarantee of when it will be called again.
++     */
++//    now.msec += 500; // pad time to fire alarms up to 500ms early
++//    while (ht->cur_size && PJ_TIME_VAL_LTE(ht->heap[0]->_timer_value, now) && count < ht->max_entries_per_poll) {
++//	pj_timer_entry *node = remove_node(ht, 0);
++//	pj_grp_lock_t *grp_lock;
++//
++//	++count;
++//
++//	grp_lock = node->_grp_lock;
++//	node->_grp_lock = NULL;
++//
++//	unlock_timer_heap(ht);
++//
++//	if (node->cb)
++//	    (*node->cb)(ht, node);
++//
++//	if (grp_lock)
++//	    pj_grp_lock_dec_ref(grp_lock);
++//	lock_timer_heap(ht);
++//    }
++//    unlock_timer_heap(ht);
++    return;
+ }
+ 
+-PJ_DEF(pj_size_t) pj_timer_heap_count( pj_timer_heap_t *ht )
+-{
++PJ_DEF(pj_size_t) pj_timer_heap_count(pj_timer_heap_t *ht) {
+     PJ_ASSERT_RETURN(ht, 0);
+ 
+     return ht->cur_size;
+ }
+ 
+-PJ_DEF(pj_status_t) pj_timer_heap_earliest_time( pj_timer_heap_t * ht,
+-					         pj_time_val *timeval)
+-{
+-    pj_assert(ht->cur_size != 0);
++PJ_DEF(pj_status_t) pj_timer_heap_earliest_time(pj_timer_heap_t * ht, pj_time_val *timeval) {
++    pj_assert(ht
++	    ->cur_size != 0);
+     if (ht->cur_size == 0)
+-        return PJ_ENOTFOUND;
++	return
++	PJ_ENOTFOUND;
+ 
+     lock_timer_heap(ht);
+     *timeval = ht->heap[0]->_timer_value;
+@@ -688,7 +1001,7 @@ PJ_DEF(void) pj_timer_heap_dump(pj_timer_heap_t *ht)
+ 
+     PJ_LOG(3,(THIS_FILE, "Dumping timer heap:"));
+     PJ_LOG(3,(THIS_FILE, "  Cur size: %d entries, max: %d",
+-			 (int)ht->cur_size, (int)ht->max_size));
++		    (int)ht->cur_size, (int)ht->max_size));
+ 
+     if (ht->cur_size) {
+ 	unsigned i;
+@@ -705,16 +1018,16 @@ PJ_DEF(void) pj_timer_heap_dump(pj_timer_heap_t *ht)
+ 	    pj_time_val delta;
+ 
+ 	    if (PJ_TIME_VAL_LTE(e->_timer_value, now))
+-		delta.sec = delta.msec = 0;
++	    delta.sec = delta.msec = 0;
+ 	    else {
+ 		delta = e->_timer_value;
+ 		PJ_TIME_VAL_SUB(delta, now);
+ 	    }
+ 
+ 	    PJ_LOG(3,(THIS_FILE, "    %d\t%d\t%d.%03d\t%s:%d",
+-		      e->_timer_id, e->id,
+-		      (int)delta.sec, (int)delta.msec,
+-		      e->src_file, e->src_line));
++			    e->_timer_id, e->id,
++			    (int)delta.sec, (int)delta.msec,
++			    e->src_file, e->src_line));
+ 	}
+     }
+ 
+@@ -722,3 +1035,4 @@ PJ_DEF(void) pj_timer_heap_dump(pj_timer_heap_t *ht)
+ }
+ #endif
+ 
++
+diff --git a/pjsip/include/pjsua2/endpoint.hpp b/pjsip/include/pjsua2/endpoint.hpp
+index d52cde3..53e2dc4 100644
+--- a/pjsip/include/pjsua2/endpoint.hpp
++++ b/pjsip/include/pjsua2/endpoint.hpp
+@@ -859,6 +859,8 @@ public:
+      */
+     pjsua_state libGetState() const;
+ 
++void tcpKaInterval(long interval) throw(Error);
++
+     /**
+      * Initialize pjsua with the specified settings. All the settings are
+      * optional, and the default values will be used when the config is not
+diff --git a/pjsip/src/pjsip-ua/sip_reg.c b/pjsip/src/pjsip-ua/sip_reg.c
+index acf801b..ba79cda 100644
+--- a/pjsip/src/pjsip-ua/sip_reg.c
++++ b/pjsip/src/pjsip-ua/sip_reg.c
+@@ -810,7 +810,10 @@ static void regc_refresh_timer_cb( pj_timer_heap_t *timer_heap,
+ 
+ static void schedule_registration ( pjsip_regc *regc, pj_int32_t expiration )
+ {
+-    if (regc->auto_reg && expiration > 0) {
++    //BUGFIX: possible - always sched timer even if expiration is <=0
++    //if (regc->auto_reg && expiration > 0) {
++    PJ_LOG(5,(THIS_FILE, "schedule_registration"));
++    if (regc->auto_reg) {
+         pj_time_val delay = { 0, 0};
+ 
+         pj_timer_heap_cancel_if_active(pjsip_endpt_get_timer_heap(regc->endpt),
+diff --git a/pjsip/src/pjsua2/endpoint.cpp b/pjsip/src/pjsua2/endpoint.cpp
+index 690ce02..35178d2 100644
+--- a/pjsip/src/pjsua2/endpoint.cpp
++++ b/pjsip/src/pjsua2/endpoint.cpp
+@@ -1431,6 +1431,11 @@ pjsua_state Endpoint::libGetState() const
+     return pjsua_get_state();
+ }
+ 
++void Endpoint::tcpKaInterval(long interval) throw(Error)
++{
++    pjsip_cfg()->tcp.keep_alive_interval = interval;
++}
++
+ void Endpoint::libInit(const EpConfig &prmEpConfig) throw(Error)
+ {
+     pjsua_config ua_cfg;
+-- 
+2.9.0.windows.1
+

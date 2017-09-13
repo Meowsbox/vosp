@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<RelativeLayout android:id="@+id/nBase"
+                xmlns:android="http://schemas.android.com/apk/res/android"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+    >
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginTop="16dp"
+        >
+
+        <RelativeLayout
+            android:id="@+id/nHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true">
+
+            <ImageView
+                android:id="@+id/nIvIconSmall"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@color/image_placeholder"/>
+
+            <TextView
+                android:id="@+id/nTvHeaderTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="8dp"
+                android:layout_toRightOf="@id/nIvIconSmall"
+                android:focusable="true"
+                android:fontFamily="sans-serif"
+                android:text="header-text"
+                android:textColor="@color/secondary_text_color"
+                android:textSize="6pt"/>
+
+            <TextView
+                android:id="@+id/nTvHeaderAltSep"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="4dp"
+                android:layout_toRightOf="@id/nTvHeaderTitle"
+                android:focusable="true"
+                android:fontFamily="sans-serif"
+                android:text="•"
+                android:textColor="@color/secondary_text_color"
+                android:textSize="6pt"
+                android:visibility="gone"/>
+            <TextView
+                android:id="@+id/nTvHeaderAlt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="4dp"
+                android:layout_toRightOf="@id/nTvHeaderAltSep"
+                android:focusable="true"
+                android:fontFamily="sans-serif"
+                android:text="header-alt"
+                android:textColor="@color/secondary_text_color"
+                android:textSize="6pt"
+                android:visibility="gone"/>
+
+            <Chronometer
+                android:id="@+id/nTvHeaderCounter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:fontFamily="sans-serif"
+                android:textColor="@color/secondary_text_color"
+                android:textSize="6pt"
+                android:visibility="gone"/>
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:id="@+id/nContent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/nHeader"
+            android:gravity="center_vertical"
+            >
+
+            <ImageView
+                android:id="@+id/nIvIconLarge"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_alignParentRight="true"
+                android:visibility="gone"
+                android:src="@color/image_placeholder"/>
+
+            <TextView
+                android:id="@+id/tvValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFamily="sans-serif"
+            android:visibility="gone"
+                android:text="text"
+                android:textColor="@color/primary_text_color"
+                android:textSize="6pt"/>
+
+            <TextView
+                android:id="@+id/tvValue2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="8dp"
+                android:layout_marginTop="8dp"
+                android:layout_toRightOf="@id/tvValue"
+
+                android:fontFamily="sans-serif"
+                android:text="text"
+                android:textColor="@color/secondary_text_color"
+                android:textSize="6pt"
+                android:visibility="gone"/>
+
+        </RelativeLayout>
+    </RelativeLayout>
+
+
+</RelativeLayout>
+

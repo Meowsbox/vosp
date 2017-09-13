@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<LinearLayout
+    android:id="@+id/llSettings"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingTop="?android:attr/actionBarSize">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <com.meowsbox.vosp.widget.CompRowHeader
+                android:id="@+id/ihGeneralOptions"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar_full"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilSwOutgoingAll"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilSwVibe"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilSwAltLaunchers"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowColor
+                android:id="@+id/ilUiColorPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar_full"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilSwUiColorNotifDark"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar_full"/>
+
+            <com.meowsbox.vosp.widget.CompRowHeader
+                android:id="@+id/ihServerConfig"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar_full"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilFriendlyName"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilUsername"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilSecret"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilServer"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEditIntRange
+                android:id="@+id/IlServerPort"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit2IntRange
+                android:id="@+id/IlRtpPortRange"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilRegExpire"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar_full"/>
+
+            <com.meowsbox.vosp.widget.CompRowHeader
+                android:id="@+id/ihAdvancedOpt"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar_full"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilSwIce"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilSwStun"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilStunServer"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilSwTcp"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilOnBoot"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilDozeWorkaround"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilDozeDisableRoot"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilWifiLock"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilKaTcpMobile"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilKaTcpWifi"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEditIbIntRange
+                android:id="@+id/ilMediaAudioPreAmpRx"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEditIbIntRange
+                android:id="@+id/ilMediaAudioPreAmpTx"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEditIbIntRange
+                android:id="@+id/ilMediaQuality"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

@@ -1,0 +1,33 @@
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<resources>
+    <!-- Default screen margins, per the Android Design guidelines. -->
+    <dimen name="activity_horizontal_margin">16dp</dimen>
+    <dimen name="activity_vertical_margin">16dp</dimen>
+
+    <dimen name="person_contact_context_horizontal_padding">30dp</dimen>
+    <dimen name="person_contact_context_message_text_size">16sp</dimen>
+    <dimen name="person_contact_context_message_vertical_padding">7dp</dimen>
+    <dimen name="person_contact_context_message_horizontal_padding">12dp</dimen>
+    <dimen name="person_contact_context_message_background_main_radius">15dp</dimen>
+    <dimen name="person_contact_context_message_background_accent_radius">2dp</dimen>
+    <dimen name="person_contact_context_detail_padding_top">7dp</dimen>
+    <dimen name="person_contact_context_detail_text_size">14sp</dimen>
+
+    <!-- Size of text in tabs. -->
+    <dimen name="tab_text_size">14sp</dimen>
+    <dimen name="tab_elevation">2dp</dimen>
+    <dimen name="tab_unread_count_background_size">16dp</dimen>
+    <dimen name="tab_unread_count_background_radius">2dp</dimen>
+    <dimen name="tab_unread_count_margin_left">10dp</dimen>
+    <dimen name="tab_unread_count_margin_top">2dp</dimen>
+    <dimen name="tab_unread_count_text_size">12sp</dimen>
+    <dimen name="tab_unread_count_text_padding">2dp</dimen>
+
+</resources>

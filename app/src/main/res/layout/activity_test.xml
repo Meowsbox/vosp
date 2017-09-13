@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:theme="@style/Dialpad_Light"
+    tools:context="com.meowsbox.vosp.DialtactsActivity">
+
+
+    <include
+        layout="@layout/dialpad_view"/>
+
+    <Space
+        android:id="@+id/dialpad_floating_action_button_margin_bottom"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/floating_action_button_margin_bottom"
+        android:layout_alignParentBottom="true"/>
+
+    <FrameLayout
+        android:id="@+id/dialpad_floating_action_button_container"
+        android:layout_width="@dimen/floating_action_button_width"
+        android:layout_height="@dimen/floating_action_button_height"
+        android:layout_above="@id/dialpad_floating_action_button_margin_bottom"
+        android:layout_centerHorizontal="true"
+        android:background="@drawable/fab_green">
+
+        <ImageButton
+            android:id="@+id/dialpad_floating_action_button"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/floating_action_button"
+            android:contentDescription="dial"
+            android:src="@drawable/fab_ic_call"/>
+
+    </FrameLayout>
+
+</RelativeLayout>

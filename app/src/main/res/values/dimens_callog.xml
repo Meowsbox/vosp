@@ -1,0 +1,52 @@
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<resources>
+    <dimen name="divider_line_thickness">1dp</dimen>
+    <!-- Call Log -->
+    <dimen name="call_log_horizontal_margin">8dp</dimen>
+    <!--<dimen name="call_log_call_action_size">32dp</dimen>-->
+    <!--<dimen name="call_log_call_action_width">54dp</dimen>-->
+    <!--<dimen name="call_log_icon_margin">4dp</dimen>-->
+    <!--<dimen name="call_log_inner_margin">13dp</dimen>-->
+    <!--<dimen name="call_log_outer_margin">8dp</dimen>-->
+    <!--<dimen name="call_log_start_margin">8dp</dimen>-->
+    <!--<dimen name="call_log_indent_margin">24dp</dimen>-->
+    <!--<dimen name="call_log_name_margin_bottom">2dp</dimen>-->
+    <dimen name="call_log_call_account_margin_bottom">2dp</dimen>
+    <dimen name="call_log_vertical_padding">12dp</dimen>
+    <!--<dimen name="call_log_list_item_height">56dp</dimen>-->
+    <dimen name="call_log_list_item_info_margin_start">16dp</dimen>
+    <dimen name="show_call_history_list_item_height">72dp</dimen>
+
+    <!--<dimen name="call_detail_button_spacing">2dip</dimen>-->
+    <!--<dimen name="call_detail_horizontal_margin">20dp</dimen>-->
+    <!--<dimen name="call_detail_top_margin">16dp</dimen>-->
+    <!--<dimen name="call_detail_bottom_margin">16dp</dimen>-->
+    <!--<dimen name="call_detail_header_top_margin">20dp</dimen>-->
+    <!--<dimen name="call_detail_header_bottom_margin">9dp</dimen>-->
+    <dimen name="call_detail_elevation">0.5dp</dimen>
+    <dimen name="call_detail_action_item_padding_horizontal">28dp</dimen>
+    <dimen name="call_detail_action_item_padding_vertical">16dp</dimen>
+    <dimen name="call_detail_action_item_drawable_padding">28dp</dimen>
+    <dimen name="call_detail_action_item_text_size">16sp</dimen>
+
+    <dimen name="call_log_action_icon_margin_start">16dp</dimen>
+    <dimen name="call_log_action_icon_dimen">24dp</dimen>
+    <!--<dimen name="call_log_action_horizontal_padding">24dp</dimen>-->
+
+    <!--<dimen name="call_log_actions_left_padding">64dp</dimen>-->
+    <dimen name="call_log_actions_top_padding">8dp</dimen>
+    <dimen name="call_log_actions_bottom_padding">8dp</dimen>
+    <!--<dimen name="call_log_primary_text_size">16sp</dimen>-->
+    <dimen name="call_log_detail_text_size">12sp</dimen>
+    <dimen name="call_log_day_group_heading_size">14sp</dimen>
+    <dimen name="call_log_voicemail_transcription_text_size">14sp</dimen>
+
+    <dimen name="call_log_list_item_primary_action_dimen">36dp</dimen>
+</resources>

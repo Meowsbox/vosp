@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2017. Darryl Hon
+  ~ Modifications Copyright (c) 2017. Darryl Hon
+  ~
+  ~ This file is part of VOSP and may be covered under one or more licenses.
+  ~ Refer to the project LICENSE and NOTICE files for details.
+  -->
+
+<resources>
+    <color name="call_log_action_divider">#eeeeee</color>
+    <color name="background_dialer_call_log">@color/background_dialer_light</color>
+    <color name="background_dialer_call_log_list_item">@color/background_dialer_white</color>
+    <color name="call_detail_footer_text_color">#616161</color>
+    <color name="call_detail_footer_icon_tint">@color/call_detail_footer_text_color</color>
+    <color name="call_log_list_item_primary_action_icon_tint">@color/call_log_icon_tint</color>
+    <color name="call_log_icon_tint">#8a000000</color>
+
+</resources>
