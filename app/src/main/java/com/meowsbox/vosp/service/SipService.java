@@ -59,7 +59,6 @@ import com.meowsbox.vosp.service.licensing.LicensingManager;
 import com.meowsbox.vosp.service.receivers.DozeStatusReceiver;
 import com.meowsbox.vosp.service.receivers.NetworkStatusReceiver;
 import com.meowsbox.vosp.service.receivers.NotificationReceiver;
-import com.meowsbox.vosp.service.receivers.PackageReplacedReceiver;
 import com.meowsbox.vosp.service.receivers.PowerSaveModeReceiver;
 import com.meowsbox.vosp.service.receivers.ScreenStateReceiver;
 import com.meowsbox.vosp.service.receivers.ServiceStateReceiver;
@@ -68,7 +67,6 @@ import com.meowsbox.vosp.utility.UriSip;
 import org.pjsip.pjsua2.AccountInfo;
 import org.pjsip.pjsua2.CallInfo;
 import org.pjsip.pjsua2.pjsip_status_code;
-import org.sqlite.database.sqlite.SQLiteDatabase;
 
 import java.util.Enumeration;
 import java.util.LinkedList;
@@ -154,7 +152,7 @@ public class SipService extends Service {
     private Integer networkType = null;
     private int retryCount = 0;
     private int retryCountLimit = 3;
-    private volatile int uiMessageKeyIndex = 0;
+    private volatile Integer uiMessageKeyIndex = 0;
     private volatile LocalStore localStore;
     private ScheduledRun scheduledRun;
     private i18nProvider i18n;
@@ -259,7 +257,10 @@ public class SipService extends Service {
         String numberClean = PhoneNumberUtilsSimple.normalizeNumber2(number);
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, numberClean);
         try {
-            SipAccount account = sipAccounts.getFirst();
+            SipAccount account;
+            synchronized (sipAccounts) {
+                account = sipAccounts.getFirst();
+            }
             if (!isAccountRegActive(account.getId())) {
                 if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "!AccountRegActive, call failed");
                 UiMessagesCommon.showAccountRegFailed(this);
@@ -574,8 +575,7 @@ public class SipService extends Service {
                                 gLog.l(TAG, Logger.lvError, e.getStackTrace());
                                 gLog.flushHint();
                                 e.printStackTrace();
-                            }
-                            else {
+                            } else {
                                 e.printStackTrace();
                             }
                         }
@@ -919,8 +919,10 @@ public class SipService extends Service {
     }
 
     public void resetAccountRetryCountAll() {
-        for (SipAccount sipAccount : sipAccounts) {
-            sipAccount.resetRetryCount();
+        synchronized (sipAccounts) {
+            for (SipAccount sipAccount : sipAccounts) {
+                sipAccount.resetRetryCount();
+            }
         }
     }
 
@@ -1009,12 +1011,16 @@ public class SipService extends Service {
      * @param enable
      */
     void accountsRegisterAll(final boolean enable) {
-        if (sipAccounts.isEmpty()) return;
-        for (SipAccount sipAccount : sipAccounts) {
-            if (sipAccount.isEnabled()) try {
-                sipAccount.setRegistration(enable); // enable == renew
-            } catch (Exception e) {
-                if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        synchronized (sipAccounts) {
+            if (sipAccounts.isEmpty()) return;
+        }
+        synchronized (sipAccounts) {
+            for (SipAccount sipAccount : sipAccounts) {
+                if (sipAccount.isEnabled()) try {
+                    sipAccount.setRegistration(enable); // enable == renew
+                } catch (Exception e) {
+                    if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+                }
             }
         }
     }
@@ -1304,10 +1310,12 @@ public class SipService extends Service {
     }
 
     SipAccount getSipAccountById(final int id) {
-        for (SipAccount sipAccount : sipAccounts) {
-            if (sipAccount.getId() == id) return sipAccount;
+        synchronized (sipAccounts) {
+            for (SipAccount sipAccount : sipAccounts) {
+                if (sipAccount.getId() == id) return sipAccount;
+            }
+            return null;
         }
-        return null;
     }
 
     SipCall getSipCallById(int callId) {
@@ -1375,7 +1383,10 @@ public class SipService extends Service {
     }
 
     boolean isAccountRegActive(int accountId) {
-        SipAccount sipAccount = sipAccounts.get(accountId);
+        SipAccount sipAccount;
+        synchronized (sipAccounts) {
+            sipAccount = sipAccounts.get(accountId);
+        }
         if (sipAccount == null) return false;
         try {
             AccountInfo info = sipAccount.getInfo();
@@ -1472,16 +1483,22 @@ public class SipService extends Service {
     void populateAccounts() {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "populateAccounts");
         SipAccount sipAccount = new SipAccount(getInstance(), null);
-        sipAccounts.add(sipAccount);
+        synchronized (sipAccounts) {
+            sipAccounts.add(sipAccount);
+        }
         int result = sipAccount.initAccountFromPref(0);
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "initAccountFromPref " + result);
         switch (result) {
             case SipAccount.ACCOUNT_CREATE_ERR_NOT_ENABLED:
-                sipAccounts.remove(sipAccount);
+                synchronized (sipAccounts) {
+                    sipAccounts.remove(sipAccount);
+                }
                 UiMessagesCommon.showSetupRequired(this);
                 return;
             case SipAccount.ACCOUNT_CREATE_ERR_NOT_VALID:
-                sipAccounts.remove(sipAccount);
+                synchronized (sipAccounts) {
+                    sipAccounts.remove(sipAccount);
+                }
                 UiMessagesCommon.showSettingsProblem(this);
                 return;
         }
@@ -1694,9 +1711,11 @@ public class SipService extends Service {
         }
     }
 
-    synchronized void refreshRegistrationsIfRequired() {
-        for (SipAccount sipAccount : sipAccounts) {
-            sipAccount.refreshIfRequired();
+    void refreshRegistrationsIfRequired() {
+        synchronized (sipAccounts) {
+            for (SipAccount sipAccount : sipAccounts) {
+                sipAccount.refreshIfRequired();
+            }
         }
     }
 
@@ -1803,15 +1822,17 @@ public class SipService extends Service {
         notificationController.cancelNotificationAll();
         // purge accounts
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "purging accounts...");
-        for (SipAccount sa : sipAccounts) {
-            try {
-                sa.setRegistration(false);
-            } catch (Exception e) {
-                if (DEBUG) e.printStackTrace();
+        synchronized (sipAccounts) {
+            for (SipAccount sa : sipAccounts) {
+                try {
+                    sa.setRegistration(false);
+                } catch (Exception e) {
+                    if (DEBUG) e.printStackTrace();
+                }
+                sa.delete();
             }
-            sa.delete();
+            sipAccounts.clear();
         }
-        sipAccounts.clear();
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "accounts cleared.");
         sipEndpoint.destroy();
         generateServiceId();
@@ -2134,8 +2155,10 @@ public class SipService extends Service {
         }
     }
 
-    private synchronized int uiMessageGetNextIndex() {
-        return uiMessageKeyIndex++;
+    private int uiMessageGetNextIndex() {
+        synchronized (uiMessageKeyIndex) {
+            return uiMessageKeyIndex++;
+        }
     }
 
     /**

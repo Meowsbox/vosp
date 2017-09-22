@@ -176,6 +176,10 @@ public class DialogPremiumUpgrade {
 
     public void handlePreBuyIntentResult(Context context, IRemoteSipService sipService, int result) {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, result);
+        if (context == null || sipService == null) {
+            if (dialog != null) dialog.dismiss();
+            return;
+        }
         switch (result) {
             case LicensingManager.RESULT_ERROR_ALREADY_OWNED: {
                 AlertDialog.Builder builder = new AlertDialog.Builder(context, R.style.Theme_AppCompat_Light_Dialog_Alert);
