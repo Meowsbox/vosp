@@ -54,7 +54,11 @@ public class LogWriterImpl implements Logger.LogWriter {
         final String liveFilePath = intStoragePath + DATA_FILE_NAME_FULL;
         File file = new File(liveFilePath);
         Log.d(TAG, file.getAbsolutePath());
-        mDb = SQLiteDatabase.openOrCreateDatabase(liveFilePath, null);
+        try {
+            mDb = SQLiteDatabase.openOrCreateDatabase(liveFilePath, null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         if (mDb == null) {
             logBuffer = null;
             Log.e(TAG, "Failed to open or create DB");
@@ -111,12 +115,14 @@ public class LogWriterImpl implements Logger.LogWriter {
 
     @Override
     public void onFlushHint() {
+        if (mDb == null) return; // no mDB to write!
         l(Logger.lvVerbose,"onFlushHint");
         flushSmart(true);
     }
 
     @Override
     public void onLog(final int level, final String tag, final String text) {
+        if (mDb == null) return; // no mDB to write!
         if (logBuffer != null) logBuffer.add(new LogItem(level, tag, text));
         flushSmart(false);
     }
@@ -161,7 +167,7 @@ public class LogWriterImpl implements Logger.LogWriter {
     }
 
     private void putLog(LogItem logItem) {
-        if (logItem == null || putLog == null) return;
+        if (logItem == null || putLog == null || mDb == null) return;
         putLog.clearBindings();
         putLog.bindLong(1, logItem.time);
         putLog.bindLong(2, logItem.level);

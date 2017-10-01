@@ -205,9 +205,10 @@ class SipServiceHandler extends Handler {
                         if (sipService.hasActiveCalls()) UiMessagesCommon.showInCallNetworkChange(sipService);
                     } else { // no network connectivity
                         UiMessagesCommon.showNoNetwork(sipService);
-                        sipService.stackStop();
+                        // pjsip 2.7 internally handles connectivity and ip address changes, no need to stackStop
+//                        sipService.stackStop();
                         sipService.getNotificationController().setForegroundMessage(null, sipService.getI18n().getString("no_network", "No Network"), null);
-                        sipService.wakelockPartialReleaseAll();
+//                        sipService.wakelockPartialReleaseAll();
                     }
                     sipService.updateWifiLockState();
                     if (wakeLockRelease == 0)

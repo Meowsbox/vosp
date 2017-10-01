@@ -234,6 +234,8 @@ public class UiMessageController {
 
     private void itemRemove(int position) {
         synchronized (values) {
+            if (values.size() == 0) return; // already gone?
+            if (position < 0 || position > values.size()) return; // sanity check, or double tap
             values.remove(position);
         }
         updateHeight();

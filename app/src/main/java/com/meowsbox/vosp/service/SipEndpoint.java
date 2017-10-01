@@ -22,8 +22,10 @@ import org.pjsip.pjsua2.CodecInfo;
 import org.pjsip.pjsua2.CodecInfoVector;
 import org.pjsip.pjsua2.Endpoint;
 import org.pjsip.pjsua2.EpConfig;
+import org.pjsip.pjsua2.IpChangeParam;
 import org.pjsip.pjsua2.LogEntry;
 import org.pjsip.pjsua2.LogWriter;
+import org.pjsip.pjsua2.OnIpChangeProgressParam;
 import org.pjsip.pjsua2.OnTransportStateParam;
 import org.pjsip.pjsua2.StringVector;
 import org.pjsip.pjsua2.TransportConfig;
@@ -322,6 +324,11 @@ public class SipEndpoint {
                 SipService.getInstance().queueCommand(msg);
             }
             super.onTransportState(prm);
+        }
+
+        @Override
+        public void onIpChangeProgress(OnIpChangeProgressParam prm) {
+            if (DEBUG) gLog.l(TAG,Logger.lvVerbose,prm.getOp().toString());
         }
     }
 

@@ -221,7 +221,7 @@ public class LocalStoreImpl implements LocalStore {
         // check if live db present. Extract if not, or incorrect version, or file size is zero
         if (!copyApkDataToAppData()) result = INIT_RESULT_FAIL;
 
-        mDb = SQLiteDatabase.openDatabase(intStoragePath + DATA_FILE_NAME_FULL, null, SQLiteDatabase.OPEN_READWRITE);
+        mDb = SQLiteDatabase.openDatabase(intStoragePath + DATA_FILE_NAME_FULL, null, SQLiteDatabase.OPEN_READWRITE); // may throw exception, consider this fatal and crash is ok
         if (mDb == null) {
             gLog.l(TAG, Logger.lvError, "openDatabase failed");
             result = INIT_RESULT_FAIL;

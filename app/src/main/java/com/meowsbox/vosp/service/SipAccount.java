@@ -24,6 +24,7 @@ import org.pjsip.pjsua2.OnInstantMessageParam;
 import org.pjsip.pjsua2.OnRegStartedParam;
 import org.pjsip.pjsua2.OnRegStateParam;
 import org.pjsip.pjsua2.pjsip_status_code;
+import org.pjsip.pjsua2.pjsua_call_flag;
 import org.pjsip.pjsua2.pjsua_stun_use;
 
 import java.util.concurrent.ExecutionException;
@@ -143,8 +144,8 @@ public class SipAccount extends Account {
         isEnabled = enabled;
     }
 
-    public void refreshIfRequired() {
-        if (!isEnabled()) return;
+    public boolean refreshIfRequired() {
+        if (!isEnabled()) return false;
         AccountInfo info = null;
         try {
             info = getInfo();
@@ -153,8 +154,9 @@ public class SipAccount extends Account {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        if (info != null && info.getRegIsActive()) return;
+        if (info != null && info.getRegIsActive()) return false;
         queueRetryRegistration();
+        return true;
     }
 
     /**
@@ -169,7 +171,7 @@ public class SipAccount extends Account {
     @Override
     public synchronized void delete() {
         if (DEBUG) {
-            SipService.getInstance().getLoggerInstanceShared().l(TAG,Logger.lvVerbose,"delete");
+            SipService.getInstance().getLoggerInstanceShared().l(TAG, Logger.lvVerbose, "delete");
 //            new Exception().printStackTrace();
         }
         super.delete();
@@ -289,16 +291,26 @@ public class SipAccount extends Account {
         accountConfig.getRegConfig().setRandomRetryIntervalSec(0);
         accountConfig.getRegConfig().setRegisterOnAdd(false);
 
+        accountConfig.getIpChangeConfig().setReinviteFlags(pjsua_call_flag.PJSUA_CALL_UPDATE_CONTACT.swigValue());
+        accountConfig.getIpChangeConfig().setShutdownTp(false);
+
         accountConfig.getMediaConfig().getTransportConfig().setPort(Long.parseLong(ACCOUNT_MEDIA_PORT_BEGIN));
         accountConfig.getMediaConfig().getTransportConfig().setPortRange(Long.parseLong(ACCOUNT_MEDIA_PORT_END));
 
         AccountNatConfig natConfig = accountConfig.getNatConfig();
         natConfig.setUdpKaIntervalSec(sipService.getSipEndpoint().getKeepAliveUdpCurrent());
+
         if (!useStun) natConfig.setSipStunUse(pjsua_stun_use.PJSUA_STUN_USE_DISABLED);
         if (useIce) natConfig.setIceEnabled(true);
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "ICE " + natConfig.getIceEnabled());
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "TURN " + natConfig.getTurnEnabled());
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "STUN " + natConfig.getSipStunUse().toString());
+
+        if (DEBUG) {
+            gLog.l(TAG, Logger.lvVerbose, "ICE " + natConfig.getIceEnabled());
+            gLog.l(TAG, Logger.lvVerbose, "TURN " + natConfig.getTurnEnabled());
+            gLog.l(TAG, Logger.lvVerbose, "STUN " + natConfig.getSipStunUse().toString());
+            gLog.l(TAG, Logger.lvVerbose, "IPc Hangup " + accountConfig.getIpChangeConfig().getHangupCalls());
+            gLog.l(TAG, Logger.lvVerbose, "IPc ShutdownTp " + accountConfig.getIpChangeConfig().getShutdownTp());
+            gLog.l(TAG, Logger.lvVerbose, "IPc ReinviteFlags " + accountConfig.getIpChangeConfig().getReinviteFlags());
+        }
 
         authCredInfo = new AuthCredInfo("digest", "*", ACCOUNT_USER_NAME, 0, ACCOUNT_SECRET);
         accountConfig.getSipConfig().getAuthCreds().add(authCredInfo);
