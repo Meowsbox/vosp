@@ -72,10 +72,8 @@ public class DialogAbout {
         final TextView tvVersion = (TextView) view.findViewById(R.id.tvVersion);
         StringBuilder sb = new StringBuilder();
         sb.append(BuildConfig.VERSION_NAME);
-        sb.append(' ');
-        sb.append("(");
+        sb.append('.');
         sb.append(BuildConfig.VERSION_CODE);
-        sb.append(")");
         if (isPatron) {
             sb.append(" ");
             sb.append(sipService.getLocalString("patron", "PATRON").toUpperCase());

@@ -34,7 +34,12 @@ public class ContactProvider {
      */
     public static Integer getContactIdByNumber(Context context, String phoneNumber) {
         Uri uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber));
-        Cursor cursor = context.getContentResolver().query(uri, new String[]{ContactsContract.PhoneLookup._ID}, null, null, null);
+        Cursor cursor = null;
+        try {
+            cursor = context.getContentResolver().query(uri, new String[]{ContactsContract.PhoneLookup._ID}, null, null, null); // query may throw undoc exceptions when string is empty or invalid!
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         if (cursor == null) {
             return null;
         }
@@ -58,7 +63,12 @@ public class ContactProvider {
      */
     public static String getContactName(Context context, int contactId) {
         Uri contactUri = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId);
-        Cursor cursor = context.getContentResolver().query(contactUri, new String[]{ContactsContract.PhoneLookup.DISPLAY_NAME}, null, null, null);
+        Cursor cursor = null;
+        try {
+            cursor = context.getContentResolver().query(contactUri, new String[]{ContactsContract.PhoneLookup.DISPLAY_NAME}, null, null, null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         if (cursor == null) {
             return null;
         }
@@ -79,7 +89,12 @@ public class ContactProvider {
      */
     public static String getContactNameByNumber(Context context, String phoneNumber) {
         Uri uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber));
-        Cursor cursor = context.getContentResolver().query(uri, new String[]{ContactsContract.PhoneLookup.DISPLAY_NAME}, null, null, null);
+        Cursor cursor = null;
+        try {
+            cursor = context.getContentResolver().query(uri, new String[]{ContactsContract.PhoneLookup.DISPLAY_NAME}, null, null, null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         if (cursor == null) {
             return null;
         }
@@ -117,7 +132,12 @@ public class ContactProvider {
     public static Bitmap getContactPhotoThumb(Context context, int contactId) {
         Uri contactUri = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId);
         Uri photoUri = Uri.withAppendedPath(contactUri, ContactsContract.Contacts.Photo.CONTENT_DIRECTORY);
-        Cursor cursor = context.getContentResolver().query(photoUri, new String[]{ContactsContract.Contacts.Photo.PHOTO}, null, null, null);
+        Cursor cursor = null;
+        try {
+            cursor = context.getContentResolver().query(photoUri, new String[]{ContactsContract.Contacts.Photo.PHOTO}, null, null, null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         if (cursor == null) {
             return null;
         }
