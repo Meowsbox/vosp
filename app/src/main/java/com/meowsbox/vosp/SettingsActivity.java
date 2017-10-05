@@ -902,6 +902,11 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
         }
     }
 
+    /**
+     * Commit user preferences. Invalid parameters are silently ignored.
+     *
+     * @throws RemoteException
+     */
     private void save() throws RemoteException {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "save");
 
@@ -911,10 +916,30 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
         sipService.rsSetString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_USER), vUser.getValue());
         sipService.rsSetString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_SECRET), vSecret.getValue());
         sipService.rsSetString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_SERVER), vServer.getValue());
-        sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_PORT), Integer.parseInt(vPort.getValue()));
-        sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_MEDIA_PORT_BEGIN), Integer.parseInt(vRtpRange.getValue()));
-        sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_MEDIA_PORT_END), Integer.parseInt(vRtpRange.getValue2()));
-        sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_REG_EXPIRE), Integer.parseInt(vRegExpire.getValue()));
+        try {
+            final int i = Integer.parseInt(vPort.getValue());
+            sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_PORT), i);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
+        try {
+            final int i = Integer.parseInt(vRtpRange.getValue());
+            sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_MEDIA_PORT_BEGIN), i);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
+        try {
+            final int i = Integer.parseInt(vRtpRange.getValue2());
+            sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_MEDIA_PORT_END), i);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
+        try {
+            final int i = Integer.parseInt(vRegExpire.getValue());
+            sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_REG_EXPIRE), i);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
         sipService.rsSetBoolean(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_USE_STUN), vStun.getValue());
         sipService.rsSetBoolean(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_USE_ICE), vIce.getValue());
         sipService.rsSetBoolean(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_TCP), vTcp.getValue());
@@ -926,12 +951,37 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
         sipService.rsSetBoolean(Prefs.KEY_UI_COLOR_NOTIF_DARK, vUiColorNotifDark.getValue());
         sipService.rsSetBoolean(Prefs.KEY_SHOW_ALTERNATE_LAUNCHERS, vAltLaunchers.getValue());
         sipService.rsSetString(Prefs.KEY_STUN_SERVER, vStunServer.getValue());
-        sipService.rsSetInt(Prefs.KEY_KA_TCP_MOBILE, Integer.parseInt(vKaTcpMobile.getValue()));
-        sipService.rsSetInt(Prefs.KEY_KA_TCP_WIFI, Integer.parseInt(vKaTcpWifi.getValue()));
+        try {
+            final int i = Integer.parseInt(vKaTcpMobile.getValue());
+            sipService.rsSetInt(Prefs.KEY_KA_TCP_MOBILE, i);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
+        try {
+            final int i = Integer.parseInt(vKaTcpWifi.getValue());
+            sipService.rsSetInt(Prefs.KEY_KA_TCP_WIFI, i);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
         sipService.rsSetInt(Prefs.KEY_UI_COLOR_PRIMARY, vUiColorPrimary.getValue());
-        sipService.rsSetFloat(Prefs.KEY_MEDIA_PREAMP_RX, Float.parseFloat(vMediaAudioPreAmpRx.getValue()));
-        sipService.rsSetFloat(Prefs.KEY_MEDIA_PREAMP_TX, Float.parseFloat(vMediaAudioPreAmpTx.getValue()));
-        sipService.rsSetInt(Prefs.KEY_MEDIA_QUALITY, Integer.parseInt(vMediaQuality.getValue()));
+        try {
+            final float v = Float.parseFloat(vMediaAudioPreAmpRx.getValue());
+            sipService.rsSetFloat(Prefs.KEY_MEDIA_PREAMP_RX, v);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
+        try {
+            final float v = Float.parseFloat(vMediaAudioPreAmpTx.getValue());
+            sipService.rsSetFloat(Prefs.KEY_MEDIA_PREAMP_TX, v);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
+        try {
+            final int i = Integer.parseInt(vMediaQuality.getValue());
+            sipService.rsSetInt(Prefs.KEY_MEDIA_QUALITY, i);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
 
         sipService.rsCommit(true);
         sipService.accountChangesComitted();

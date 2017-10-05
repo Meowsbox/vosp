@@ -115,7 +115,12 @@ public class ContactProvider {
      */
     public static Bitmap getContactPhoto(Context context, int contactId) {
         Uri contactUri = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId);
-        InputStream inputStream = ContactsContract.Contacts.openContactPhotoInputStream(context.getContentResolver(), contactUri, true);
+        InputStream inputStream = null;
+        try {
+            inputStream = ContactsContract.Contacts.openContactPhotoInputStream(context.getContentResolver(), contactUri, true);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         if (inputStream == null) {
             return null;
         }
