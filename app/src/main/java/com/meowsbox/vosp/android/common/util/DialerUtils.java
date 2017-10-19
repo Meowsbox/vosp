@@ -177,7 +177,11 @@ public class DialerUtils {
 
                 ((Activity) context).startActivityForResult(intent, 0);
             } else {
-                context.startActivity(intent);
+                try {
+                    context.startActivity(intent);
+                } catch (ActivityNotFoundException e){
+                    if (DEBUG) e.printStackTrace();
+                }
             }
         } catch (ActivityNotFoundException e) {
             Toast.makeText(context, msgId, Toast.LENGTH_SHORT).show();

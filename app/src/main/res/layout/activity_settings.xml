@@ -129,6 +129,20 @@
 
             <include layout="@layout/compf_hbar_full"/>
 
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilServerOutProxy"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEditIntRange
+                android:id="@+id/ilServerOutProxyPort"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
             <com.meowsbox.vosp.widget.CompRowSw
                 android:id="@+id/ilSwIce"
                 android:layout_width="match_parent"

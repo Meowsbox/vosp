@@ -25,6 +25,7 @@ import android.widget.Button;
 import com.meowsbox.vosp.DialerApplication;
 import com.meowsbox.vosp.IRemoteSipService;
 import com.meowsbox.vosp.R;
+import com.meowsbox.vosp.common.Logger;
 import com.meowsbox.vosp.service.Prefs;
 
 
@@ -35,11 +36,16 @@ import com.meowsbox.vosp.service.Prefs;
 public class DialogWelcome {
     public static final boolean DEBUG = DialerApplication.DEBUG;
     public static final int FLAG_SEEN_NONCE = 1; // int is stored in pref on dialog dismiss, clear or increment static to show anew
+    static Logger gLog = DEBUG ? new Logger(DialerApplication.LOGGER_VERBOSITY) : null;
     public final String TAG = this.getClass().getName();
     private Dialog dialog;
     private View.OnClickListener onClickListener;
 
     public DialogWelcome build(final Context context, final IRemoteSipService sipService) throws RemoteException {
+        if (context == null | sipService == null) {
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, "context or sipService NULL");
+            return null;
+        }
         LayoutInflater li = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         final View view = li.inflate(R.layout.dialog_fragment_welcome, null);
 
@@ -110,7 +116,7 @@ public class DialogWelcome {
 
     public DialogWelcome buildAndShow(final Context context, final IRemoteSipService sipService) throws RemoteException {
         build(context, sipService);
-        dialog.show();
+        if (dialog != null) dialog.show();
         return this;
     }
 

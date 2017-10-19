@@ -40,6 +40,7 @@ import android.text.TextUtils;
 //import com.android.dialer.service.CachedNumberLookupService.CachedContactInfo;
 //import com.android.dialerbind.ObjectFactory;
 
+import com.meowsbox.vosp.android.common.multiwaveview.PointCloud;
 import com.meowsbox.vosp.android.common.util.Constants;
 import com.meowsbox.vosp.android.common.util.PhoneNumberHelper;
 import com.meowsbox.vosp.android.common.util.UriUtils;
@@ -50,6 +51,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.List;
+
+import static com.meowsbox.vosp.DialtactsActivity.DEBUG;
 
 /**
  * Utility class to look up the contact information for a given number.
@@ -164,8 +167,12 @@ public class ContactInfoHelper {
      */
     private ContactInfo lookupContactFromUri(Uri uri) {
         final ContactInfo info;
-        Cursor phonesCursor =
-                mContext.getContentResolver().query(uri, PhoneQuery._PROJECTION, null, null, null);
+        Cursor phonesCursor = null;
+        try{
+            phonesCursor = mContext.getContentResolver().query(uri, PhoneQuery._PROJECTION, null, null, null);
+        } catch (Exception e) {
+            if (DEBUG) e.printStackTrace();
+        }
 
         if (phonesCursor != null) {
             try {

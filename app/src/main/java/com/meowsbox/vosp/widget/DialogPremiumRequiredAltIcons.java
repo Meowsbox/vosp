@@ -20,6 +20,7 @@ import android.widget.TextView;
 import com.meowsbox.vosp.DialerApplication;
 import com.meowsbox.vosp.IRemoteSipService;
 import com.meowsbox.vosp.R;
+import com.meowsbox.vosp.common.Logger;
 
 
 /**
@@ -28,6 +29,7 @@ import com.meowsbox.vosp.R;
 
 public class DialogPremiumRequiredAltIcons {
     public static final boolean DEBUG = DialerApplication.DEBUG;
+    static Logger gLog = DEBUG?new Logger(DialerApplication.LOGGER_VERBOSITY):null;
     public final String TAG = this.getClass().getName();
 
     private AlertDialog dialog;
@@ -45,12 +47,14 @@ public class DialogPremiumRequiredAltIcons {
                 .setPositiveButton(sipService.getLocalString("upgrade", "Upgrade"), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
+                        if (sipService != null)
+                            try {
+                                new DialogPremiumUpgrade().buildAndShow(context, sipService);
+                            } catch (RemoteException e) {
+                                if (DEBUG) e.printStackTrace();
+                            }
+                        else if (gLog != null) gLog.l(TAG,Logger.lvDebug,"sipService NULL");
                         dialog.dismiss();
-                        try {
-                            new DialogPremiumUpgrade().buildAndShow(context, sipService);
-                        } catch (RemoteException e) {
-                            if (DEBUG) e.printStackTrace();
-                        }
                     }
                 })
                 .setNegativeButton(sipService.getLocalString("close", "Close"), new DialogInterface.OnClickListener() {

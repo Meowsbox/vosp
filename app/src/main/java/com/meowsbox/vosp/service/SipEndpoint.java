@@ -14,7 +14,7 @@ import android.os.Message;
 import android.util.Log;
 
 import com.meowsbox.internal.siptest.PjSipTimerWrapper;
-import com.meowsbox.vosp.DialerApplication;
+import com.meowsbox.vosp.common.LocalStore;
 import com.meowsbox.vosp.common.Logger;
 
 import org.pjsip.pjsua2.AudDevManager;
@@ -22,7 +22,6 @@ import org.pjsip.pjsua2.CodecInfo;
 import org.pjsip.pjsua2.CodecInfoVector;
 import org.pjsip.pjsua2.Endpoint;
 import org.pjsip.pjsua2.EpConfig;
-import org.pjsip.pjsua2.IpChangeParam;
 import org.pjsip.pjsua2.LogEntry;
 import org.pjsip.pjsua2.LogWriter;
 import org.pjsip.pjsua2.OnIpChangeProgressParam;
@@ -44,6 +43,7 @@ public class SipEndpoint {
     public static final int MEDIA_QUALITY_DEFAULT = 2;
     private static final int PJLIB_LOGGING_LEVEL = 3;
     private static final int PJLIB_LOGGING_LEVEL_DEBUG = 3; // 1-6
+    private static final int STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_MAX = 2;
     public static int KEEP_ALIVE_TCP_MOBILE = 120;
     public static int KEEP_ALIVE_TCP_WIFI = 120;
     public static int KEEP_ALIVE_UDP_MOBILE = 90;
@@ -65,6 +65,10 @@ public class SipEndpoint {
     private boolean isAlive = false;
     volatile private boolean wdTransport = false; // enable to trigger reregister on any transport shutdown
 
+    public SipEndpoint() {
+        gLog = SipService.getInstance().getLoggerInstanceShared();
+    }
+
     public static int getKeepAliveTcpCurrent() {
         return KEEP_ALIVE_TCP_CURRENT;
     }
@@ -73,12 +77,8 @@ public class SipEndpoint {
         return KEEP_ALIVE_UDP_CURRENT;
     }
 
-    public SipEndpoint(){
-        gLog = SipService.getInstance().getLoggerInstanceShared();
-    }
-
     public void flushTransport() {
-        if (DEBUG) gLog.l(TAG,Logger.lvVerbose,"flushTransport");
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "flushTransport");
 //        try {
 //            ep.hangupAllCalls();
 //            if (isTransportTcpValid) {
@@ -149,11 +149,22 @@ public class SipEndpoint {
             epConfig.delete();
 
             // Create SIP transport. Error handling sample is shown
+            final LocalStore localStore = SipService.getInstance().getLocalStore();
+            int rc = localStore.getInt(Prefs.KEY_STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_COUNT, 0);
+            if (DEBUG) gLog.l(TAG,Logger.lvDebug,"Create transport failure count: "+rc);
             if (!createTransport()) {
-                gLog.l(TAG, Logger.lvError, "FATAL, restart - failed to create transport");
-                Message message = new Message();
-                message.arg1 = SipServiceMessages.MSG_STACK_RESTART;
-                SipService.getInstance().queueCommand(message, 1000);
+                gLog.l(TAG, Logger.lvDebug, "FATAL, restart - failed to create transport");
+                if (rc > STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_MAX) {
+                    gLog.l(TAG, Logger.lvDebug, "Could not create transport - too many failures!");
+                } else {
+                    localStore.setInt(Prefs.KEY_STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_COUNT, ++rc);
+                    Message message = new Message();
+                    message.arg1 = SipServiceMessages.MSG_STACK_RESTART;
+                    SipService.getInstance().queueCommand(message, 1000);
+                }
+            } else {
+                localStore.setInt(Prefs.KEY_STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_COUNT,0);
+                if (DEBUG) gLog.l(TAG,Logger.lvDebug,"Create transport failure count RESET");
             }
 
             // Start the library
@@ -201,7 +212,7 @@ public class SipEndpoint {
      * Call to unload PJSIP library and cleanup the endpoint. Init can be called afterwards to recreate the library instance and endpoint.
      */
     void destroy() {
-        if (DEBUG) gLog.l(TAG,Logger.lvVerbose,"destroy");
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "destroy");
         isAlive = false;
         wdTransport = false;
         // per pjsip docs, must call libDestroy BEFORE delete
@@ -328,7 +339,7 @@ public class SipEndpoint {
 
         @Override
         public void onIpChangeProgress(OnIpChangeProgressParam prm) {
-            if (DEBUG) gLog.l(TAG,Logger.lvVerbose,prm.getOp().toString());
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, prm.getOp().toString());
         }
     }
 

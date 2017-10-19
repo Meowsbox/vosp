@@ -132,7 +132,6 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
     private static boolean mIsDialogWelcomeShown; // flag to show dialog on create/resume
     public final String TAG = this.getClass().getName();
     private DialogPremiumUpgrade dialogUpgrade;
-    private DialogAbout dialogAbout;
     private EventHandler sipServiceEventHandler = new EventHandler();
     volatile private IRemoteSipService sipService = null;
     private FrameLayout mParentLayout;
@@ -657,6 +656,16 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
     public void onServiceDisconnected() {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "onServiceDisconnected");
         sipService = null;
+
+        // flush dialogs, sipService is no longer valid
+        if (dialogFragmentWelcome != null) {
+            dialogFragmentWelcome.dismiss();
+            dialogFragmentWelcome = null;
+        }
+        if (dialogUpgrade != null) {
+            dialogUpgrade.dismiss();
+            dialogUpgrade  = null;
+        }
     }
 
     /**
@@ -688,20 +697,11 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
     }
 
     protected void handleMenuAbout() {
-//        final Intent intent = new Intent(this, LicensesActivity.class);
-//        startActivity(intent);
-//        DialogFragmentAbout dialogFragmentAbout = new DialogFragmentAbout();
-//        dialogFragmentAbout.setSipService(sipService).show(getFragmentManager(), DialogFragmentAbout.class.getSimpleName());
-
-        if (dialogAbout == null)
-            try {
-                dialogAbout = new DialogAbout().buildAndShow(getWindow().getContext(), sipService);
-            } catch (RemoteException e) {
-                if (DEBUG) e.printStackTrace();
-            }
-        else dialogAbout.show();
-
-
+        try {
+            new DialogAbout().buildAndShow(getWindow().getContext(), sipService);
+        } catch (RemoteException e) {
+            if (DEBUG) e.printStackTrace();
+        }
     }
 
     protected void handleMenuSettings() {

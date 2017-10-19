@@ -37,20 +37,21 @@ import java.util.ArrayList;
 
 public class DialogRateUsLocal {
     public static final boolean DEBUG = DialerApplication.DEBUG;
-    static Logger gLog = new Logger(DialerApplication.LOGGER_VERBOSITY);
+    static Logger gLog = DEBUG ? new Logger(DialerApplication.LOGGER_VERBOSITY) : null;
     public final String TAG = this.getClass().getName();
 
     private Dialog dialog;
 
     public DialogRateUsLocal build(final Context context, final IRemoteSipService sipService) throws RemoteException {
+        if (context == null | sipService == null) {
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, "context or sipService NULL");
+            return null;
+        }
         LayoutInflater li = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         final View view = li.inflate(R.layout.dialog_fragment_rateus_local, null);
 
         final TextView tvTitle = (TextView) view.findViewById(R.id.tvTitle);
         tvTitle.setText(sipService.rsGetString("rate_title", "Let us know how you like this app."));
-
-//        final TextView tvComment = (TextView) view.findViewById(R.id.tvComment);
-//        tvComment.setText(sipService.rsGetString("rate_comment", "Let us know how you like this app."));
 
         final RatingBar rbStars = (RatingBar) view.findViewById(R.id.rbStars);
 
@@ -66,6 +67,11 @@ public class DialogRateUsLocal {
         bSubmit.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (sipService == null) {
+                    if (DEBUG) gLog.l(TAG, Logger.lvDebug, "sipService NULL");
+                    dismiss();
+                    return;
+                }
                 try {
                     sipService.rsSetLong(Prefs.KEY_FLAG_RATE_LOCAL_TS, System.currentTimeMillis());
                 } catch (RemoteException e) {
@@ -87,13 +93,6 @@ public class DialogRateUsLocal {
                     if (DEBUG) e.printStackTrace();
                 }
 
-//                new Handler(context.getMainLooper()).postDelayed(new Runnable() {
-//                    @Override
-//                    public void run() {
-//                        dismiss();
-//                    }
-//                }, 1000);
-
                 final Button bContact = (Button) view.findViewById(R.id.bContactUs);
                 try {
                     bContact.setText(sipService.rsGetString("send_feedback_q", "Send Feedback?"));
@@ -103,6 +102,11 @@ public class DialogRateUsLocal {
                 bContact.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
+                        if (sipService == null) {
+                            if (DEBUG) gLog.l(TAG, Logger.lvDebug, "sipService NULL");
+                            dismiss();
+                            return;
+                        }
                         Intent i = new Intent(Intent.ACTION_SEND_MULTIPLE);
                         i.setType("message/rfc822");
                         i.putExtra(Intent.EXTRA_EMAIL, new String[]{"support@meowsbox.com"});
@@ -173,7 +177,7 @@ public class DialogRateUsLocal {
 
     public DialogRateUsLocal buildAndShow(final Context context, final IRemoteSipService sipService) throws RemoteException {
         build(context, sipService);
-        dialog.show();
+        if (dialog != null) dialog.show();
         return this;
     }
 

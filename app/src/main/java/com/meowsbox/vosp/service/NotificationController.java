@@ -511,6 +511,7 @@ public class NotificationController {
         setNotificationDisplayName(mBuilder, contactName, remoteDisplayName, EXTENSION);
 
         Bundle callBundle = new Bundle();
+        callBundle.putInt(EXTRA_BIND_PJSIPCALLID, pjsipCallId);
         callBundle.putInt(EXTRA_NOTIFICATION_ID, pjsipCallId);
         callBundle.putInt(EXTRA_PJSIP_CALL_ID, pjsipCallId);
 

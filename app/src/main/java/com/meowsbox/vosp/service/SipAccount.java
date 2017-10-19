@@ -23,6 +23,7 @@ import org.pjsip.pjsua2.OnIncomingCallParam;
 import org.pjsip.pjsua2.OnInstantMessageParam;
 import org.pjsip.pjsua2.OnRegStartedParam;
 import org.pjsip.pjsua2.OnRegStateParam;
+import org.pjsip.pjsua2.StringVector;
 import org.pjsip.pjsua2.pjsip_status_code;
 import org.pjsip.pjsua2.pjsua_call_flag;
 import org.pjsip.pjsua2.pjsua_stun_use;
@@ -46,7 +47,9 @@ public class SipAccount extends Account {
     public final String TAG = this.getClass().getName();
     private String ACCOUNT_USER_NAME;
     private String ACCOUNT_SIP_SERVER;
+    private String ACCOUNT_SIP_SERVER_OUTBOUND_PROXY;
     private String ACCOUNT_SIP_SERVER_PORT;
+    private String ACCOUNT_SIP_SERVER_OUTBOUND_PROXY_PORT;
     private String ACCOUNT_REG_EXPIRE;
     private String ACCOUNT_MEDIA_PORT_BEGIN;
     private String ACCOUNT_MEDIA_PORT_END;
@@ -110,6 +113,8 @@ public class SipAccount extends Account {
         ACCOUNT_SECRET = ls.getString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_SECRET), "");
         ACCOUNT_SIP_SERVER = ls.getString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_SERVER), "");
         ACCOUNT_SIP_SERVER_PORT = String.valueOf(ls.getInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_PORT), 5060));
+        ACCOUNT_SIP_SERVER_OUTBOUND_PROXY = ls.getString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_SERVER_OUT_PROXY), "");
+        ACCOUNT_SIP_SERVER_OUTBOUND_PROXY_PORT = String.valueOf(ls.getInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_PORT_OUT_PROXY), 5060));
         ACCOUNT_MEDIA_PORT_BEGIN = String.valueOf(ls.getInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_MEDIA_PORT_BEGIN), 5000)); // asterisk default 5000
         ACCOUNT_MEDIA_PORT_END = String.valueOf(ls.getInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_MEDIA_PORT_END), 31000)); // asterisk default 31000
         ACCOUNT_REG_EXPIRE = String.valueOf(ls.getInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_REG_EXPIRE), 300));
@@ -122,6 +127,8 @@ public class SipAccount extends Account {
             if (DialerApplication.DEV) gLog.l(TAG, Logger.lvVerbose, "Secret " + ACCOUNT_SECRET);
             gLog.l(TAG, Logger.lvVerbose, "Server " + ACCOUNT_SIP_SERVER);
             gLog.l(TAG, Logger.lvVerbose, "Port " + ACCOUNT_SIP_SERVER_PORT);
+            gLog.l(TAG, Logger.lvVerbose, "Server Outbound Proxy " + (ACCOUNT_SIP_SERVER_OUTBOUND_PROXY.isEmpty() ? "NOT USED" : ACCOUNT_SIP_SERVER_OUTBOUND_PROXY));
+            gLog.l(TAG, Logger.lvVerbose, "Outbound Proxy Port " + ACCOUNT_SIP_SERVER_OUTBOUND_PROXY_PORT);
             gLog.l(TAG, Logger.lvVerbose, "Expire " + ACCOUNT_REG_EXPIRE);
             gLog.l(TAG, Logger.lvVerbose, "TCP " + useTcp);
         }
@@ -240,13 +247,19 @@ public class SipAccount extends Account {
             sipService.uiMessageDismissByType(InAppNotifications.TYPE_WARN_NO_NETWORK); // remove any previously shown messages about no network connectivity
             sipService.uiMessageDismissByType(InAppNotifications.TYPE_INFO_CONNECT_PROGRESS); // remove any previously shown messages about connection progress
             return;
-        } else if (code == pjsip_status_code.PJSIP_SC_FORBIDDEN) {
+        } else if (code == pjsip_status_code.PJSIP_SC_FORBIDDEN || code == pjsip_status_code.PJSIP_SC_UNAUTHORIZED) {
             retryCount = 0;
             wdCancelSetReg();
             sipService.getNotificationController().setForegroundMessage(null, accountName + " " + sipService.getI18n().getString("login_failed", "login failed"), null);
             sipService.uiMessageDismissByType(InAppNotifications.TYPE_INFO_CONNECT_PROGRESS); // remove any previously shown messages about connection progress
             UiMessagesCommon.showLoginFailed(sipService);
             return;
+        } else if (code == pjsip_status_code.PJSIP_SC_BAD_GATEWAY) {
+            retryCount = 0;
+            wdCancelSetReg();
+            sipService.getNotificationController().setForegroundMessage(null, accountName + " " + sipService.getI18n().getString("settings_or_network_problem", "settings or network problem"), null);
+            sipService.uiMessageDismissByType(InAppNotifications.TYPE_INFO_CONNECT_PROGRESS); // remove any previously shown messages about connection progress
+            UiMessagesCommon.showSettingsProblem(sipService);
         } else {
             if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "retrying registration...");
             if (retryCount > 0)
@@ -291,6 +304,12 @@ public class SipAccount extends Account {
         accountConfig.getRegConfig().setRandomRetryIntervalSec(0);
         accountConfig.getRegConfig().setRegisterOnAdd(false);
 
+        if (!ACCOUNT_SIP_SERVER_OUTBOUND_PROXY.isEmpty()) {
+            final StringVector proxies = accountConfig.getSipConfig().getProxies();
+            proxies.clear();
+            proxies.add(getOutboundProxyUri());
+        }
+
         accountConfig.getIpChangeConfig().setReinviteFlags(pjsua_call_flag.PJSUA_CALL_UPDATE_CONTACT.swigValue());
         accountConfig.getIpChangeConfig().setShutdownTp(false);
 
@@ -316,20 +335,25 @@ public class SipAccount extends Account {
         accountConfig.getSipConfig().getAuthCreds().add(authCredInfo);
     }
 
-    private void debug_populateDefaultAccount() {
-        ACCOUNT_USER_NAME = "mobile2";
-        ACCOUNT_SIP_SERVER = "meowsbox.com";
-        ACCOUNT_SIP_SERVER_PORT = "7770";
-        ACCOUNT_SECRET = "cambridge2";
-        useTcp = true;
-    }
-
     private String getIdUri() {
         StringBuilder sb = new StringBuilder();
         sb.append("sip:");
         sb.append(ACCOUNT_USER_NAME);
         sb.append("@");
         sb.append(ACCOUNT_SIP_SERVER);
+        return sb.toString();
+    }
+
+    private String getOutboundProxyUri() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("sip:");
+        sb.append(ACCOUNT_SIP_SERVER_OUTBOUND_PROXY);
+        sb.append(":");
+        sb.append(ACCOUNT_SIP_SERVER_OUTBOUND_PROXY_PORT);
+        if (useTcp) {
+            sb.append(OPTION_DELIM);
+            sb.append(OPTION_TRANPORT_TCP);
+        }
         return sb.toString();
     }
 

@@ -24,6 +24,7 @@
 
 package com.meowsbox.vosp.android.dialer.callog;
 
+import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -75,6 +76,8 @@ import com.meowsbox.vosp.android.common.ContactPhotoManager.DefaultImageRequest;
 
 import java.util.HashMap;
 import java.util.LinkedList;
+
+import static com.meowsbox.vosp.DialtactsActivity.DEBUG;
 
 /**
  * Adapter class to fill in data for the Call Log.
@@ -1071,7 +1074,11 @@ public class CallLogAdapter extends GroupingListAdapter
                     public void onClick(View v) {
                         final Intent intent =
                                 DialtactsActivity.getAddNumberToContactIntent(details.number);
-                        mContext.startActivity(intent);
+                        try {
+                            mContext.startActivity(intent);
+                        }catch (ActivityNotFoundException e) {
+                            if (DEBUG) e.printStackTrace();
+                        }
                     }
                 });
                 mBadgeImageView.setImageResource(R.drawable.ic_person_add_24dp);

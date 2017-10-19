@@ -13,6 +13,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
+import android.util.Log;
 
 import com.meowsbox.vosp.common.Logger;
 import com.meowsbox.vosp.service.SipService;
@@ -30,13 +31,17 @@ public class ServiceBindingController implements ServiceConnection {
     public static final int STATUS_BIND_IN_PROGRESS = 1;
     public static final int STATUS_BOUND = 2;
     private static final int WD_TIMEOUT = 3000;
+    private static final int REBIND_MAX = 5;
     public final String TAG = this.getClass().getName();
     private Context mContext = null;
     private IRemoteSipService mService = null;
     private Logger gLog;
     private ServiceConnectionEvents callback;
     private volatile int isBound = 0; // 0 not, 1 in progress, 2 bound
+    private volatile int lastBound = 0;
+    private volatile int rebindCount = 0;
     private Timer wdConnect = null;
+    private boolean isReconnectOnDisconnect = true;
 
     public ServiceBindingController(Logger gLog, ServiceConnectionEvents serviceConnectionEvents, Context context) {
         this.gLog = gLog;
@@ -65,8 +70,8 @@ public class ServiceBindingController implements ServiceConnection {
     @Override
     public void onServiceConnected(ComponentName name, IBinder service) {
         if (DEBUG && gLog != null) gLog.l(TAG,Logger.lvVerbose,"onServiceConnected");
-
         isBound = STATUS_BOUND;
+        rebindCount = 0;
         wdCancel();
         mService = IRemoteSipService.Stub.asInterface(service);
         callback.onServiceConnected(mService);
@@ -76,12 +81,24 @@ public class ServiceBindingController implements ServiceConnection {
     public void onServiceDisconnected(ComponentName name) {
         if (DEBUG && gLog != null) gLog.l(TAG,Logger.lvVerbose,"onServiceDisconnected");
         wdCancel();
+        lastBound = isBound;
         isBound = STATUS_NOT_BOUND;
         callback.onServiceDisconnected();
         mService = null;
+        if (isReconnectOnDisconnect && lastBound == 2) {
+            if (rebindCount > REBIND_MAX) {
+                if (DEBUG && gLog != null) gLog.l(TAG,Logger.lvDebug,"Reconnect Exceeded");
+                return;
+            }
+            rebindCount++;
+            bindToService(); // reconnect
+            if (DEBUG && gLog != null) gLog.l(TAG,Logger.lvDebug,"Reconnecting");
+
+        }
     }
 
     public void unbindToService() {
+        isReconnectOnDisconnect = false;
         if (isBound > STATUS_NOT_BOUND) {
             try {
                 mContext.unbindService(this);

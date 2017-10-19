@@ -26,7 +26,6 @@ import com.meowsbox.vosp.DialerApplication;
 import com.meowsbox.vosp.IRemoteSipService;
 import com.meowsbox.vosp.LicensesActivity;
 import com.meowsbox.vosp.R;
-import com.meowsbox.vosp.common.Logger;
 import com.meowsbox.vosp.service.licensing.LicensingManager;
 import com.meowsbox.vosp.service.providers.SupportAttachmentProvider;
 
@@ -40,7 +39,6 @@ import java.util.Locale;
 
 public class DialogAbout {
     public static final boolean DEBUG = DialerApplication.DEBUG;
-    static Logger gLog = new Logger(DialerApplication.LOGGER_VERBOSITY);
     public final String TAG = this.getClass().getName();
 
     private Dialog dialog;
@@ -154,24 +152,18 @@ public class DialogAbout {
 
         bContact = (Button) view.findViewById(R.id.bContactSupport);
         bContact.setText(sipService.rsGetString("contact_support", "Contact Support"));
+
+        final String deviceId = sipService.getDeviceId();
+        final String support_email_body = sipService.getLocalString("support_email_body", "");
         bContact.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent i = new Intent(Intent.ACTION_SEND_MULTIPLE);
                 i.setType("message/rfc822");
                 i.putExtra(Intent.EXTRA_EMAIL, new String[]{"support@meowsbox.com"});
-                String deviceId = null;
-                try {
-                    deviceId = sipService.getDeviceId();
-                } catch (RemoteException e) {
-                    if (DEBUG) e.printStackTrace();
-                }
+
                 i.putExtra(Intent.EXTRA_SUBJECT, "VOSP " + deviceId);
-                try {
-                    i.putExtra(Intent.EXTRA_TEXT, sipService.getLocalString("support_email_body", ""));
-                } catch (RemoteException e) {
-                    if (DEBUG) e.printStackTrace();
-                }
+                i.putExtra(Intent.EXTRA_TEXT, support_email_body);
 
                 ArrayList<Uri> attachmentUriList = new ArrayList<Uri>();
                 attachmentUriList.add(Uri.parse("content://" + SupportAttachmentProvider.AUTHORITY + "/" + "data.db.zip"));

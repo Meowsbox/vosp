@@ -58,9 +58,9 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
     private CompRowEdit vUser;
     private CompRowEdit vFriendly;
     private CompRowEdit vSecret;
-    private CompRowEdit vServer;
+    private CompRowEdit vServer, vServerOutProxy;
     //    private CompRowEdit vPort, vRtpBegin, vRtpEnd;
-    private CompRowEditIntRange vPort;
+    private CompRowEditIntRange vPort, vPortOutProxy;
     private CompRowEdit2IntRange vRtpRange;
     private CompRowSw vStun, vIce;
     private CompRowEdit vStunServer;
@@ -401,6 +401,57 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
                         AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
                         builder.setTitle(getString("use_stun", "Use STUN"))
                                 .setMessage(getString("help_use_stun", "Use Session Traversal Utilities for NAT (STUN) server to traverse through most network firewalls or NAT. The default is enabled."))
+                                .setCancelable(true)
+                                .setPositiveButton(getString("close", "Close"), new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        dialog.dismiss();
+                                    }
+                                });
+                        AlertDialog dialog = builder.create();
+                        dialog.show();
+                    }
+                });
+
+        vServerOutProxy = (CompRowEdit) findViewById(R.id.ilServerOutProxy);
+        vServerOutProxy.setName(getString("server_out_proxy", "Outbound Proxy"));
+        vServerOutProxy.setValue(sipService.rsGetString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_SERVER_OUT_PROXY), ""))
+                .setChangeListener(this);
+        vServerOutProxy.setHelpDrawable(dHelp)
+                .setChangeListener(this)
+                .setHelpVisibility(View.VISIBLE)
+                .setHelpOnClick(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
+                        builder.setTitle(getString("use_out_proxy", "Use Outbound Proxy"))
+                                .setMessage(getString("help_use_out_proxy", "Specify an outbound sip proxy instead of the registration server for outbound call routing. The default is blank."))
+                                .setCancelable(true)
+                                .setPositiveButton(getString("close", "Close"), new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        dialog.dismiss();
+                                    }
+                                });
+                        AlertDialog dialog = builder.create();
+                        dialog.show();
+                    }
+                });
+
+        vPortOutProxy = (CompRowEditIntRange) findViewById(R.id.ilServerOutProxyPort);
+        vPortOutProxy.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_NORMAL);
+        vPortOutProxy.setName(getString("port_out_proxy", "Outbound Proxy Port"));
+        vPortOutProxy.setValue(String.valueOf(sipService.rsGetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_PORT_OUT_PROXY), 5060)));
+        vPortOutProxy.setBoundRange(1, 65535).setSnapDefaults(5060).setSnapToRange(true);
+        vPortOutProxy.setHelpDrawable(dHelp)
+                .setChangeListener(this)
+                .setHelpVisibility(View.VISIBLE)
+                .setHelpOnClick(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
+                        builder.setTitle(getString("port_out_proxy", "Outbound Proxy Port"))
+                                .setMessage(getString("help_port_out_proxy", "The port the outbound proxy server is listening for client connections. Check with your service provider for the correct value. The valid range is 1-65535. The default is 5060."))
                                 .setCancelable(true)
                                 .setPositiveButton(getString("close", "Close"), new DialogInterface.OnClickListener() {
                                     @Override
@@ -916,9 +967,16 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
         sipService.rsSetString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_USER), vUser.getValue());
         sipService.rsSetString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_SECRET), vSecret.getValue());
         sipService.rsSetString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_SERVER), vServer.getValue());
+        sipService.rsSetString(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_SERVER_OUT_PROXY), vServerOutProxy.getValue());
         try {
             final int i = Integer.parseInt(vPort.getValue());
             sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_PORT), i);
+        } catch (NumberFormatException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
+        }
+        try {
+            final int i = Integer.parseInt(vPortOutProxy.getValue());
+            sipService.rsSetInt(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_PORT_OUT_PROXY), i);
         } catch (NumberFormatException e) {
             if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
         }

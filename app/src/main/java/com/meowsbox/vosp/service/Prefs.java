@@ -64,10 +64,20 @@ public class Prefs {
      */
     public static final String KEY_ACCOUNT_SUF_SERVER = "server";
     /**
+     * Outbound SIP Proxy IP or URL without specified port.
+     * Use getAccountKey method interact with his preference.
+     */
+    public static final String KEY_ACCOUNT_SUF_SERVER_OUT_PROXY = "server_out_proxy";
+    /**
      * SIP server port
      * Use getAccountKey method interact with his preference.
      */
     public static final String KEY_ACCOUNT_SUF_PORT = "port";
+    /**
+     * SIP outbound proxy server port
+     * Use getAccountKey method interact with his preference.
+     */
+    public static final String KEY_ACCOUNT_SUF_PORT_OUT_PROXY = "port_out_proxy";
     /**
      * Enable to prefer TCP transport, otherwise defaults to UDP.
      * Use getAccountKey method interact with his preference.
@@ -170,6 +180,9 @@ public class Prefs {
      * Key prefix for account specific preferences to be used by getAccountKey method to create a valid preference lookup key.
      */
     private static final String KEY_ACCOUNT_PREFIX = "pref_account";
+
+
+    public static final String KEY_STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_COUNT= "pref_stackrestartoncreatetransportfailurecount";
 
     /**
      * Generate the storage key pointing to the account data required.

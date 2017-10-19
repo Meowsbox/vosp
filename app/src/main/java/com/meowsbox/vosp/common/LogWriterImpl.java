@@ -95,15 +95,18 @@ public class LogWriterImpl implements Logger.LogWriter {
         flushTimer.cancel();
         flushTimer.purge();
         flushLogBuffer();
-        executorService.shutdownNow();
-        try {
-            executorService.awaitTermination(3000, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        if (!executorService.isShutdown()) {
+            executorService.shutdownNow();
+            try {
+                executorService.awaitTermination(3000, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
         if (putLog != null) {
             putLog.releaseReference();
             putLog.close();
+            putLog = null;
         }
         if (mDb != null) {
             mDb.close();
@@ -116,29 +119,34 @@ public class LogWriterImpl implements Logger.LogWriter {
     @Override
     public void onFlushHint() {
         if (mDb == null) return; // no mDB to write!
-        l(Logger.lvVerbose,"onFlushHint");
+        l(Logger.lvVerbose, "onFlushHint");
         flushSmart(true);
     }
 
     @Override
     public void onLog(final int level, final String tag, final String text) {
-        if (mDb == null) return; // no mDB to write!
+        if (mDb == null) {
+            Log.d(tag,text);
+            return; // no mDB to write!
+        }
         if (logBuffer != null) logBuffer.add(new LogItem(level, tag, text));
         flushSmart(false);
     }
 
     private void flushLogBuffer() {
-        if (logBuffer == null) return;
+        if (logBuffer == null || putLog == null) return;
         while (!logBuffer.isEmpty()) {
             final LogItem logItem = logBuffer.poll();
-            putLog(logItem);
+            if (putLog != null) putLog(logItem);
+            else break;
         }
         lastFlush = System.currentTimeMillis();
-        l(Logger.lvVerbose,"Flushed");
+        l(Logger.lvVerbose, "Flushed");
     }
 
     private void flushSmart(boolean ignoreInterval) {
-        if (!ignoreInterval) if (logBuffer.size() < BUFFER_SIZE && (System.currentTimeMillis() - lastFlush) < FLUSH_INTERVAL) return;
+        if (!ignoreInterval)
+            if (logBuffer.size() < BUFFER_SIZE && (System.currentTimeMillis() - lastFlush) < FLUSH_INTERVAL) return;
         if (isFlushProgress) return;
         isFlushProgress = true;
         executorService.submit(new Runnable() {

@@ -372,7 +372,7 @@ public class InCallActivity extends Activity implements ServiceBindingController
     }
 
     @Override
-    protected void onResume() {
+    protected void onResume() { // BUG NOTE: Samsung devices may not call onResume, duplicate calls to onWindowfocusChanged
         mServiceController.bindToService();
 
         if (mFloatingActionButtonController != null)
@@ -383,13 +383,14 @@ public class InCallActivity extends Activity implements ServiceBindingController
         super.onResume();
     }
 
-    @Override
-    protected void onPause() {
-//        if (sipService != null) sipService.debugDisconnect();
-        if (wlProx != null && wlProx.isHeld())
-            wlProx.release(); // release proximity wakelock when activity not displayed
-        super.onPause();
-    }
+//BUGFIX: Samsung nonspec behavior, onPause on screen off - code moved to onWindowfocusChanged
+//    @Override
+//    protected void onPause() {
+////        if (sipService != null) sipService.debugDisconnect();
+//        if (wlProx != null && wlProx.isHeld())
+//            wlProx.release(); // release proximity wakelock when activity not displayed
+//        super.onPause();
+//    }
 
     @Override
     protected void onDestroy() {
@@ -440,6 +441,22 @@ public class InCallActivity extends Activity implements ServiceBindingController
         } catch (RemoteException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        if (hasFocus) {
+            mServiceController.bindToService();
+
+            if (mFloatingActionButtonController != null)
+                mFloatingActionButtonController.setScreenWidth(getWindow().getDecorView().getWidth());
+
+            updateWlProxState();
+        } else {
+            if (wlProx != null && wlProx.isHeld())
+                wlProx.release(); // release proximity wakelock when activity not displayed
+        }
+        super.onWindowFocusChanged(hasFocus);
     }
 
     void queueActivtyFinish() {
@@ -547,6 +564,8 @@ public class InCallActivity extends Activity implements ServiceBindingController
 //        else callButtonFragment.setEnabled(false);
         setupAnswerFragment();
 
+        setupCallButtonFragment();
+
         // race condition - check if is still valid
         try {
             int sipCallState = sipService.getSipCallState(boundCallId);
@@ -611,13 +630,29 @@ public class InCallActivity extends Activity implements ServiceBindingController
                     mAnswerFragment.setVisibility(View.GONE);
                     break;
                 case SipCall.SIPSTATE_ACCEPTED:
+                case SipCall.SIPSTATE_HOLD:
                     mAnswerFragment.setVisibility(View.GONE);
                 default:
-                    if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Unhandled sipstate for answerfragment");
+                    if (DEBUG) {
+                        gLog.l(TAG, Logger.lvDebug, "Unhandled sipstate for answerfragment " + sipState);
+                        gLog.l(TAG, Logger.lvDebug, "boundCallId " + boundCallId);
+                    }
                     break;
             }
         } catch (RemoteException e) {
-            e.printStackTrace();
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
+        }
+
+    }
+
+    private void setupCallButtonFragment() {
+        if (callButtonFragment == null || boundCallId == -1 || sipService == null) return;
+        try {
+            callButtonFragment.setMute(sipService.callIsMute(boundCallId));
+            callButtonFragment.setHold(sipService.getSipCallState(boundCallId) == SipCall.SIPSTATE_HOLD);
+            callButtonFragment.setSupportedAudio(0);
+        } catch (RemoteException e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
         }
 
     }

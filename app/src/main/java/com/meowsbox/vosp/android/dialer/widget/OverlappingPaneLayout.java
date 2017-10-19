@@ -591,7 +591,14 @@ public class OverlappingPaneLayout extends ViewGroup {
                 continue;
             }
 
-            final LayoutParams lp = (LayoutParams) child.getLayoutParams();
+            // sanity check, children may not contain OverlappingPaneLayout.LayoutParams
+            final ViewGroup.LayoutParams layoutParams = child.getLayoutParams();
+            if (!(layoutParams instanceof OverlappingPaneLayout.LayoutParams)) {
+                Log.d("OverlappingPaneLayout","Other LayoutParams");
+                continue;
+            }
+
+            final LayoutParams lp = (LayoutParams) layoutParams; //child.getLayoutParams();
 
             final int childHeight = child.getMeasuredHeight();
 

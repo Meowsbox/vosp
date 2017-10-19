@@ -394,9 +394,15 @@ public class SipService extends Service {
                 }
             });
         } catch (ExecutionException e) {
-            if (DEBUG) e.printStackTrace();
+            if (DEBUG) {
+                gLog.l(TAG, Logger.lvDebug, e);
+                e.printStackTrace();
+            }
         } catch (InterruptedException e) {
-            if (DEBUG) e.printStackTrace();
+            if (DEBUG) {
+                gLog.l(TAG, Logger.lvDebug, e);
+                e.printStackTrace();
+            }
         }
 
     }

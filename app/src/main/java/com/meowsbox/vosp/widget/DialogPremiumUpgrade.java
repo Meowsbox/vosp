@@ -41,6 +41,10 @@ public class DialogPremiumUpgrade {
     private Dialog dialog;
 
     public DialogPremiumUpgrade build(final Context context, final IRemoteSipService sipService) throws RemoteException {
+        if (context == null | sipService == null) {
+            if (DEBUG) gLog.l(TAG,Logger.lvDebug,"context or sipService NULL");
+            return null;
+        }
         boolean isPrem = false;
         boolean isPatron = false;
         try {
@@ -86,6 +90,11 @@ public class DialogPremiumUpgrade {
         if (!isPrem) pcard1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (sipService == null){
+                    if (DEBUG) gLog.l(TAG,Logger.lvDebug,"sipService NULL");
+                    dismiss();
+                    return;
+                }
                 try {
                     final int r = sipService.licensingBuyPrem();
                     handlePreBuyIntentResult(context, sipService, r);
@@ -139,6 +148,11 @@ public class DialogPremiumUpgrade {
         if (!isPatron) pcard2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (sipService == null){
+                    if (DEBUG) gLog.l(TAG,Logger.lvDebug,"sipService NULL");
+                    dismiss();
+                    return;
+                }
                 try {
                     final int r = sipService.licensingBuyPatron();
                     handlePreBuyIntentResult(context, sipService, r);
@@ -162,7 +176,7 @@ public class DialogPremiumUpgrade {
 
     public DialogPremiumUpgrade buildAndShow(final Context context, final IRemoteSipService sipService) throws RemoteException {
         build(context, sipService);
-        dialog.show();
+        if (dialog != null) dialog.show();
         return this;
     }
 
