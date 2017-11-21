@@ -85,7 +85,7 @@ public class DialogPremiumUpgrade {
         if (skuDataPrem != null) ((TextView) pcard1.findViewById(R.id.subtitle)).setText(skuDataPrem.price);
         ((TextView) pcard1.findViewById(R.id.cap1)).setText(sipService.getLocalString("premup_p1", "16 Material theme colors"));
         ((TextView) pcard1.findViewById(R.id.cap2)).setText(sipService.getLocalString("premup_p2", "4 Bonus launcher icons"));
-        ((TextView) pcard1.findViewById(R.id.cap3)).setText(sipService.getLocalString("premup_p3", "Unlock all premium settings"));
+        ((TextView) pcard1.findViewById(R.id.cap3)).setText(sipService.getLocalString("premup_p3", "Call recording + more settings"));
         pcard1.setClickable(true);
         if (!isPrem) pcard1.setOnClickListener(new View.OnClickListener() {
             @Override

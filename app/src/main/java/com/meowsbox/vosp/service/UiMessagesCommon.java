@@ -33,6 +33,14 @@ public class UiMessagesCommon {
         sipService.showUiMessage(InAppNotifications.TYPE_INFO, bundle);
     }
 
+    static public void showCallRecordExternalStorageProblem(SipService sipService) {
+        Bundle bundle = new Bundle();
+        bundle.putString("message", sipService.getI18n().getString("call_record_fail", "Call Recording Failed"));
+        bundle.putString("message2", sipService.getI18n().getString("no_space_or_perm_denied", "Insufficient space available or permission denied"));
+        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
+        sipService.showUiMessage(InAppNotifications.TYPE_WARN, bundle);
+    }
+
     static public void showCallFailed(SipService sipService) {
         Bundle bundle = new Bundle();
         bundle.putString("message", sipService.getI18n().getString("call_failed", "Call Failed"));

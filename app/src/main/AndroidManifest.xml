@@ -173,6 +173,7 @@
 
         <activity android:name=".SettingsActivity">
         </activity>
+        <activity android:name=".RecordedCallsActivity"/>
         <activity android:name=".LicensesActivity"/>
 
         <receiver
@@ -203,6 +204,13 @@
         <provider
             android:name=".service.providers.SupportAttachmentProvider"
             android:authorities="com.meowsbox.vosp.exportProvider"
+            android:enabled="true"
+            android:grantUriPermissions="true"
+            android:process=":SipServiceProcess">
+        </provider>
+        <provider
+            android:name=".service.providers.RecordingsFileProvider"
+            android:authorities="com.meowsbox.vosp.exportRecordingsProvider"
             android:enabled="true"
             android:grantUriPermissions="true"
             android:process=":SipServiceProcess">

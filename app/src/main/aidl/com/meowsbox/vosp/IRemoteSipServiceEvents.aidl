@@ -11,12 +11,19 @@ package com.meowsbox.vosp;
 // Declare any non-default types here with import statements
 
 interface IRemoteSipServiceEvents {
- /**
-     * Call by the service when Call Mute state has changed.
+    /**
+     * Called by the service when Call Mute state has changed.
      *
      * @param pjsipCallId
      */
     void onCallMuteStateChanged(int pjsipCallId);
+
+    /**
+     * Called by the service when Call Recording state has changed.
+     *
+     * @param pjsipCallId
+     */
+    void onCallRecordStateChanged(int pjsipCallId);
 
     /**
      * Called by service on Call change of state. Be sure to retain a reference to the Call as once the call is disconnected it can no longer be retrieved.

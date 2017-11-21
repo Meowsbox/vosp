@@ -109,6 +109,7 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
     public final static boolean DEBUG = DialerApplication.DEBUG;
     public static final String SHARED_PREFS_NAME = "com.android.dialer_preferences";
     final static int MENU_ID_EXIT = 2203;
+    final static int MENU_ID_SHOW_CALL_RECORDINGS = 2204;
     /**
      * @see #getCallOrigin()
      */
@@ -519,6 +520,11 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
                     e.printStackTrace();
                 }
                 return true;
+            case MENU_ID_SHOW_CALL_RECORDINGS:
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, "MENU_ID_SHOW_CALL_RECORDINGS");
+                final Intent intent = new Intent(this, RecordedCallsActivity.class);
+                startActivity(intent);
+                return true;
         }
         return false;
     }
@@ -664,7 +670,7 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
         }
         if (dialogUpgrade != null) {
             dialogUpgrade.dismiss();
-            dialogUpgrade  = null;
+            dialogUpgrade = null;
         }
     }
 
@@ -1235,9 +1241,15 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
 
     private void populateMenu() {
         Menu menu = mOverflowMenu.getMenu();
+        if (menu.findItem(MENU_ID_SHOW_CALL_RECORDINGS) == null) try {
+            String ls = sipService.getLocalString("recordings", "Recordings");
+            menu.add(Menu.NONE, MENU_ID_SHOW_CALL_RECORDINGS, 3, ls);
+        } catch (RemoteException e) {
+            if (DEBUG) e.printStackTrace();
+        }
         if (menu.findItem(MENU_ID_EXIT) == null) try {
             String ls = sipService.getLocalString("exit", "Exit");
-            menu.add(Menu.NONE, MENU_ID_EXIT, Menu.NONE, ls);
+            menu.add(Menu.NONE, MENU_ID_EXIT, 100, ls);
         } catch (RemoteException e) {
             if (DEBUG) e.printStackTrace();
         }
@@ -1268,7 +1280,6 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
                 if (DEBUG) e.printStackTrace();
             }
         }
-
 
     }
 
@@ -1424,6 +1435,11 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
         }
 
         @Override
+        public void onCallRecordStateChanged(int pjsipCallId) throws RemoteException {
+
+        }
+
+        @Override
         public void onCallStateChanged(int pjsipCallId) throws RemoteException {
 
         }
@@ -1510,7 +1526,9 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
         }
 
 
-    }    @Override
+    }
+
+    @Override
     public void onClick(View view) {
         switch (view.getId()) {
             case R.id.floating_action_button:
@@ -1537,8 +1555,6 @@ public class DialtactsActivity extends Activity implements View.OnClickListener,
             }
         }
     }
-
-
 
 
 }

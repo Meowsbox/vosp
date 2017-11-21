@@ -130,6 +130,12 @@
         <!-- This slot is either "Add" or "Merge", depending on the state of the call.  One or the
              other of these must always be set to GONE. -->
 
+        <!-- "Record" -->
+        <ToggleButton android:id="@+id/recordButton"
+                      style="@style/InCallCompoundButton"
+                      android:background="@drawable/btn_compound_record"
+                      android:contentDescription="Record" />
+
         <!-- "Turn off camera" for video calls. -->
         <ToggleButton android:id="@+id/pauseVideoButton"
             style="@style/InCallCompoundButton"

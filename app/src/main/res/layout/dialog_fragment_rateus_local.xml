@@ -66,6 +66,7 @@
         android:numStars="5"
         android:progressBackgroundTint="@color/md_blue_grey_200"
         android:progressTint="@color/md_yellow_500"
+        android:layout_gravity="center_horizontal"
         android:rating="5"
         android:stepSize="1"/>
 

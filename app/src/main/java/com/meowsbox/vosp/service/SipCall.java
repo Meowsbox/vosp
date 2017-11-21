@@ -14,6 +14,7 @@ import com.meowsbox.vosp.utility.UriSip;
 import org.pjsip.pjsua2.Account;
 import org.pjsip.pjsua2.AudDevManager;
 import org.pjsip.pjsua2.AudioMedia;
+import org.pjsip.pjsua2.AudioMediaRecorder;
 import org.pjsip.pjsua2.Call;
 import org.pjsip.pjsua2.CallInfo;
 import org.pjsip.pjsua2.CallMediaInfo;
@@ -28,6 +29,12 @@ import org.pjsip.pjsua2.pjsip_inv_state;
 import org.pjsip.pjsua2.pjsip_status_code;
 import org.pjsip.pjsua2.pjsua_call_flag;
 import org.pjsip.pjsua2.pjsua_call_media_status;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import static com.meowsbox.vosp.DialerApplication.DEV;
 
 /**
  * Wrapper for PJSIP Call. Abstracts access to native Call methods, permits retained reference after native delete.
@@ -55,18 +62,23 @@ public class SipCall {
     private boolean isAccepted = false;
     private Account account;
     private int callOutAttempt = 0;
-    private boolean isWakeLocked = false;
+    private volatile boolean isWakeLocked = false;
     private boolean wasDeclined = false;
+    private volatile boolean isRecording = false;
+    private boolean autoRecord = true;
 
     public SipCall(Account account, int pjsipCallId) {
         gLog = SipService.getInstance().getLoggerInstanceShared();
         pjsipCall = new PjsipCall(account, pjsipCallId);
         this.account = account;
+        updateRecordAuto();
     }
 
     public SipCall(Account account) {
+        gLog = SipService.getInstance().getLoggerInstanceShared();
         pjsipCall = new PjsipCall(account);
         this.account = account;
+        updateRecordAuto();
     }
 
     public int getId() {
@@ -86,6 +98,14 @@ public class SipCall {
         return isAccepted;
     }
 
+    public boolean isAutoRecord() {
+        return autoRecord;
+    }
+
+    public void setAutoRecord(boolean autoRecord) {
+        this.autoRecord = autoRecord;
+    }
+
     public boolean isMute() {
         return isMute;
     }
@@ -96,6 +116,14 @@ public class SipCall {
 
     public boolean isOutgoing() {
         return isOutgoing;
+    }
+
+    public boolean isRecording() {
+        return isRecording;
+    }
+
+    public void setRecording(boolean recording) {
+        isRecording = recording;
     }
 
     public void setWasDeclined(boolean wasDeclined) {
@@ -113,10 +141,7 @@ public class SipCall {
         if (ringbackGenerator.isPlaying()) ringbackGenerator.stop();
         if (sipStateCurrent != SIPSTATE_DISCONNECTED)
             putHangup(); // ensure call dependencies are properly closed (ie audio, etc)
-        if (isWakeLocked) {
-            isWakeLocked = false;
-            SipService.getInstance().wakelockPartialRelease("pjsipCallId " + pjsipCall.getId());
-        }
+        wakeLockControl(false,"pjsipCallId " + pjsipCall.getId());
         pjsipCall.delete();
         pjsipCall = null;
     }
@@ -261,10 +286,7 @@ public class SipCall {
             pjsipCall.hangup(prm);
             statCallStopTime = System.currentTimeMillis();
             prm.delete();
-            if (isWakeLocked) {
-                isWakeLocked = false;
-                SipService.getInstance().wakelockPartialRelease("pjsipCallId " + pjsipCall.getId());
-            }
+            wakeLockControl(false,"pjsipCallId " + pjsipCall.getId());
         } catch (Exception e) {
             SipService.getInstance().getLoggerInstanceShared().l(TAG, Logger.lvDebug, e);
             return false;
@@ -386,6 +408,30 @@ public class SipCall {
         }
     }
 
+    boolean putRecord(final boolean record) {
+        if (pjsipCall == null) return false;
+        if (sipStateCurrent != SIPSTATE_ACCEPTED) return false;
+        if (!isRecording) return pjsipCall.recordStart();
+        else return pjsipCall.recordStop();
+    }
+
+    private void updateRecordAuto() {
+        autoRecord = SipService.getInstance().getLocalStore().getBoolean(Prefs.KEY_CALL_RECORD_AUTO, false);
+    }
+
+    private void wakeLockControl(boolean acquire, String tag) {
+        if (acquire) {
+            if (isWakeLocked) return;
+            isWakeLocked = true;
+            SipService.getInstance().wakelockPartialAcquire(tag);
+        } else {
+            if (!isWakeLocked) return;
+            isWakeLocked = false;
+            SipService.getInstance().wakelockPartialRelease(tag);
+
+        }
+    }
+
     /**
      * Our extended PJSIP Call class. Do not expose methods here outside the containing class.
      * Code within this class should always be executed from the PJSIP thread.
@@ -393,6 +439,7 @@ public class SipCall {
      */
     class PjsipCall extends Call {
 
+        volatile private AudioMediaRecorder audioMediaRecorder = null;
 
         public PjsipCall(Account account, int pjsipCallId) {
             super(account, pjsipCallId);
@@ -410,11 +457,9 @@ public class SipCall {
                 pjsip_inv_state pjcallstate = ci.getState();
                 SipService.getInstance().getLoggerInstanceShared().l(TAG, Logger.lvVerbose, "pjcallstate " + pjcallstate.toString());
                 if (pjcallstate != pjsip_inv_state.PJSIP_INV_STATE_NULL && pjcallstate != pjsip_inv_state.PJSIP_INV_STATE_DISCONNECTED)
-                    if (!isWakeLocked) {
-                        isWakeLocked = true;
-                        SipService.getInstance().wakelockPartialAcquire("pjsipCallId " + pjsipCallId);
-                    }
+                    wakeLockControl(true,"pjsipCallId " + pjsipCall.getId());
                 if (pjcallstate == pjsip_inv_state.PJSIP_INV_STATE_DISCONNECTED) {
+                    recordStop();
                     if (ringbackGenerator != null) ringbackGenerator.stop();
                     SipService.getInstance().ringAndVibe(false);
                     sipStateCurrent = SIPSTATE_DISCONNECTED;
@@ -436,10 +481,7 @@ public class SipCall {
                     }).start();
                     // at this point sipCall is no longer in sipCalls list
 //                    putHangup(); // hang up our end of call and close audio dependencies
-//                    if (isWakeLocked) {
-//                        isWakeLocked = false;
-//                        SipService.getInstance().wakelockPartialRelease("pjsipCallId " + pjsipCallId);
-//                    }
+                    wakeLockControl(false,"pjsipCallId " + pjsipCall.getId());// call has been disconnected, release wakeLockPartial
                 } else if (pjcallstate == pjsip_inv_state.PJSIP_INV_STATE_CONFIRMED) {
                     sipStateCurrent = SIPSTATE_ACCEPTED;
                     if (ringbackGenerator != null) ringbackGenerator.stop();
@@ -462,14 +504,19 @@ public class SipCall {
             try {
                 ci = getInfo();
             } catch (Exception e) {
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
                 return;
             }
-
             CallMediaInfoVector cmiv = ci.getMedia();
+            gLog.l(TAG, Logger.lvDebug, "cmiv size " + cmiv.size());
 
             for (int i = 0; i < cmiv.size(); i++) {
+                gLog.l(TAG, Logger.lvDebug, "cmiv " + i);
                 CallMediaInfo cmi = cmiv.get(i);
-                if (cmi.getType() == pjmedia_type.PJMEDIA_TYPE_AUDIO && (cmi.getStatus() == pjsua_call_media_status.PJSUA_CALL_MEDIA_ACTIVE || cmi.getStatus() == pjsua_call_media_status.PJSUA_CALL_MEDIA_REMOTE_HOLD)) {
+                if (cmi.getType() == pjmedia_type.PJMEDIA_TYPE_AUDIO)
+                    gLog.l(TAG, Logger.lvDebug, "pjsua_call_media_status " + cmi.getStatus().toString());
+                if (cmi.getType() == pjmedia_type.PJMEDIA_TYPE_AUDIO &&
+                        (cmi.getStatus() == pjsua_call_media_status.PJSUA_CALL_MEDIA_ACTIVE || cmi.getStatus() == pjsua_call_media_status.PJSUA_CALL_MEDIA_REMOTE_HOLD)) {
                     // unfortunately, on Java too, the returned Media cannot be downcasted to AudioMedia
                     Media m = getMedia(i);
                     AudioMedia am = AudioMedia.typecastFromMedia(m);
@@ -487,10 +534,131 @@ public class SipCall {
                     } catch (Exception e) {
                         continue;
                     }
+                    if (autoRecord) {
+                        recordStart();
+                        final int pjsipCallId = ci.getId();
+                        SipService.getInstance().pushEventOnCallRecordStateChanged(pjsipCallId);
+                    }
                 }
             }
         }
-    }
 
+        /**
+         * Start recording media streams to file immediately.
+         *
+         * @return TRUE = success or already recording
+         */
+        public boolean recordStart() {
+            if (isRecording || audioMediaRecorder != null) {
+                if (DEV) gLog.l(TAG, Logger.lvVerbose, "Recording: recordStart ignored");
+                return true;
+            }
+            if (!SipService.getInstance().getLocalStore().getBoolean(Prefs.KEY_BOOL_ACCEPT_CALL_RECORD_LEGAL, false)) {
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Recording: Aborted, legal not accepted.");
+                return false;
+            }
+            if (!checkStorageFolder()) {
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Recording: Permission denied or SDCARD unavailable");
+                UiMessagesCommon.showCallRecordExternalStorageProblem(SipService.getInstance());
+                autoRecord = false; // prevent future attempts to begin record onCallMediaState
+                return false;
+            }
+            CallInfo ci;
+            try {
+                ci = getInfo();
+            } catch (Exception e) {
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
+                return false;
+            }
+            CallMediaInfoVector cmiv = ci.getMedia();
+            for (int i = 0; i < cmiv.size(); i++) {
+                if (DEV) gLog.l(TAG, Logger.lvVerbose, "Recording: cmiv " + i);
+                CallMediaInfo cmi = cmiv.get(i);
+                if (cmi.getType() == pjmedia_type.PJMEDIA_TYPE_AUDIO)
+                    gLog.l(TAG, Logger.lvVerbose, "Recording: pjsua_call_media_status " + cmi.getStatus().toString());
+                if (cmi.getType() == pjmedia_type.PJMEDIA_TYPE_AUDIO &&
+                        (cmi.getStatus() == pjsua_call_media_status.PJSUA_CALL_MEDIA_ACTIVE || cmi.getStatus() == pjsua_call_media_status.PJSUA_CALL_MEDIA_REMOTE_HOLD)) {
+                    Media m = getMedia(i);
+                    AudioMedia am = AudioMedia.typecastFromMedia(m);
+                    if (DEV)
+                        if (audioMediaRecorder != null)
+                            gLog.l(TAG, Logger.lvDebug, "Recording: audioMediaRecorder NOT NULL");
+                    try {
+                        audioMediaRecorder = new AudioMediaRecorder();
+                        audioMediaRecorder.createRecorder(getNewAudioRecordFilePath());
+                        AudDevManager audDevManager = SipService.getInstance().getSipEndpoint().getAudDevManager();
+                        audDevManager.getCaptureDevMedia().startTransmit(audioMediaRecorder);
+                        am.startTransmit(audioMediaRecorder);
+                        isRecording = true;
+                        if (DEV) gLog.l(TAG, Logger.lvVerbose, "Recording: Started...");
+                        return true;
+                    } catch (Exception e) {
+                        UiMessagesCommon.showCallRecordExternalStorageProblem(SipService.getInstance());
+                        // cleanup audioMediaRecorder
+                        try {
+                            am.stopTransmit(audioMediaRecorder);
+                        } catch (Exception e1) {
+                            if (DEBUG) gLog.l(TAG, Logger.lvDebug, e1);
+                        }
+                        audioMediaRecorder.delete();
+                        audioMediaRecorder = null;
+                        if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Stop recording media streams immediately.
+         *
+         * @return TRUE = success, FALSE = nothing to stop
+         */
+        public boolean recordStop() {
+            if (!isRecording) {
+                if (DEV) gLog.l(TAG, Logger.lvVerbose, "Recording: Nothing to stop");
+                return false;
+            }
+            if (audioMediaRecorder == null) {
+                if (DEV) gLog.l(TAG, Logger.lvVerbose, "Recording: Nothing to stop, audioMediaRecorder NULL");
+                return false;
+            }
+            isRecording = false;
+            audioMediaRecorder.delete();
+            audioMediaRecorder = null;
+            if (DEV) gLog.l(TAG, Logger.lvVerbose, "Recording: Stopped");
+            return true;
+        }
+
+        private boolean checkStorageFolder() {
+            return SipService.getInstance().getAppExtStoragePath() != null;
+        }
+
+        private String getNewAudioRecordFileName() {
+            final DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+            final Date date = new Date();
+            StringBuilder sb = new StringBuilder();
+            sb.append(dateFormat.format(date));
+            if (isOutgoing()) {
+                sb.append("_TO_");
+                sb.append(SipService.sanitizeForFileSystem(getExtension()));
+            } else {
+                sb.append("_FROM_");
+                sb.append(SipService.sanitizeForFileSystem(getExtension()));
+            }
+            return sb.toString();
+        }
+
+        private String getNewAudioRecordFilePath() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(SipService.getInstance().getAppExtStoragePath());
+            sb.append("/");
+            sb.append(getNewAudioRecordFileName());
+            sb.append(".wav");
+            return sb.toString();
+        }
+
+
+    }
 
 }

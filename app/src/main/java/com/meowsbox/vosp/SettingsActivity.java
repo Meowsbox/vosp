@@ -39,6 +39,7 @@ import com.meowsbox.vosp.widget.CompRowEditIbIntRange;
 import com.meowsbox.vosp.widget.CompRowEditIntRange;
 import com.meowsbox.vosp.widget.CompRowHeader;
 import com.meowsbox.vosp.widget.CompRowSw;
+import com.meowsbox.vosp.widget.DialogCallRecordLegalConfirm;
 import com.meowsbox.vosp.widget.DialogHelpAltIcons;
 import com.meowsbox.vosp.widget.DialogPremiumRequiredAltIcons;
 import com.meowsbox.vosp.widget.DialogPremiumRequiredColorPicker;
@@ -55,6 +56,7 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
     DialogPremiumRequiredColorPicker dialogPremiumRequiredColorPicker;
     DialogPremiumRequiredAltIcons dialogPremiumRequiredAltIcons;
     private CompRowSw vOutgoingAll;
+    private CompRowSw vCallRecordAuto;
     private CompRowEdit vUser;
     private CompRowEdit vFriendly;
     private CompRowEdit vSecret;
@@ -806,6 +808,48 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
                     }
                 });
 
+        vCallRecordAuto = (CompRowSw) findViewById(R.id.ilSwCallRecordAuto);
+        vCallRecordAuto.setName(getString("record_all_calls", "Record All Calls"));
+        vCallRecordAuto.setValue(sipService.rsGetBoolean(Prefs.KEY_CALL_RECORD_AUTO, false));
+        if (!isPrem) vCallRecordAuto.setOnClickListener(onClickListenerPremium);
+        vCallRecordAuto.setIsPremium(true).setRowEnabled(isPrem);
+        vCallRecordAuto.setHelpDrawable(dHelp)
+                .setHelpVisibility(View.VISIBLE)
+                .setHelpOnClick(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
+                        builder.setTitle(getString("record_all_calls", "Record All Calls"))
+                                .setMessage(getString("help_record_all_calls", "Automatically record all calls. The default is disabled."))
+                                .setCancelable(true)
+                                .setPositiveButton(getString("close", "Close"), new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        dialog.dismiss();
+                                    }
+                                });
+                        AlertDialog dialog = builder.create();
+                        dialog.show();
+                    }
+                });
+        vCallRecordAuto.setChangeListener(new IcompRowChangeListener() {
+            @Override
+            public void onChanged() {
+                try {
+                    if (vCallRecordAuto.getValue()) {
+                        final boolean call_record_legal_accepted = sipService.rsGetBoolean(Prefs.KEY_BOOL_ACCEPT_CALL_RECORD_LEGAL, false);
+                        if (!call_record_legal_accepted) {
+                            new DialogCallRecordLegalConfirm().buildAndShow(contextWrapper, sipService);
+                        }
+                        hasMadeChanges = true;
+                    }
+
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
         vVibe = (CompRowSw) findViewById(R.id.ilSwVibe);
         vVibe.setName(getString("vibrate_on_ring", "Vibrate on Ring"));
         vVibe.setValue(sipService.rsGetBoolean(Prefs.KEY_VIBRATE_ON_RING, true))
@@ -1007,6 +1051,8 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
         sipService.rsSetBoolean(Prefs.KEY_WIFI_LOCK_ENABLE, vWifiLock.getValue());
         sipService.rsSetBoolean(Prefs.KEY_VIBRATE_ON_RING, vVibe.getValue());
         sipService.rsSetBoolean(Prefs.KEY_UI_COLOR_NOTIF_DARK, vUiColorNotifDark.getValue());
+        if (sipService.rsGetBoolean(Prefs.KEY_BOOL_ACCEPT_CALL_RECORD_LEGAL, false))
+            sipService.rsSetBoolean(Prefs.KEY_CALL_RECORD_AUTO, vCallRecordAuto.getValue());
         sipService.rsSetBoolean(Prefs.KEY_SHOW_ALTERNATE_LAUNCHERS, vAltLaunchers.getValue());
         sipService.rsSetString(Prefs.KEY_STUN_SERVER, vStunServer.getValue());
         try {
@@ -1054,6 +1100,11 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
 
         @Override
         public void onCallMuteStateChanged(int pjsipCallId) throws RemoteException {
+
+        }
+
+        @Override
+        public void onCallRecordStateChanged(int pjsipCallId) throws RemoteException {
 
         }
 

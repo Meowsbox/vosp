@@ -79,6 +79,7 @@ public class CallButtonFragment extends Fragment implements OnMenuItemClickListe
     private SparseIntArray mButtonVisibilityMap = new SparseIntArray(Buttons.BUTTON_COUNT);
     private CompoundButton mAudioButton;
     private CompoundButton mMuteButton;
+    private CompoundButton mRecordButton;
     private CompoundButton mShowDialpadButton;
     private CompoundButton mHoldButton;
     private ImageButton mSwapButton;
@@ -192,6 +193,8 @@ public class CallButtonFragment extends Fragment implements OnMenuItemClickListe
         mOverflowButton.setOnClickListener(this);
         mManageVideoCallConferenceButton = (ImageButton) parent.findViewById(R.id.manageVideoCallConferenceButton);
         mManageVideoCallConferenceButton.setOnClickListener(this);
+        mRecordButton= (CompoundButton) parent.findViewById(R.id.recordButton);
+        mRecordButton.setOnClickListener(this);
         setEnabled(false);
         return parent;
     }
@@ -272,6 +275,10 @@ public class CallButtonFragment extends Fragment implements OnMenuItemClickListe
 //                }
 
                 mListener.onBtnMuteClicked();
+                break;
+            }
+            case R.id.recordButton: {
+                mListener.onBtnRecordClicked();
                 break;
             }
             case R.id.mergeButton:
@@ -404,6 +411,12 @@ public class CallButtonFragment extends Fragment implements OnMenuItemClickListe
         }
     }
 
+    public void setRecord(boolean value) {
+        if (mRecordButton.isSelected() != value) {
+            mRecordButton.setSelected(value);
+        }
+    }
+
     public void setPrimaryColor(int color) {
         MaterialPalette themeColors = mCurrentThemeColors;
         themeColors.mPrimaryColor = color;
@@ -411,6 +424,7 @@ public class CallButtonFragment extends Fragment implements OnMenuItemClickListe
         View[] compoundButtons = {
                 mAudioButton,
                 mMuteButton,
+                mRecordButton,
                 mShowDialpadButton,
                 mHoldButton,
                 mSwitchCameraButton,
@@ -520,6 +534,7 @@ public class CallButtonFragment extends Fragment implements OnMenuItemClickListe
         View[] compoundButtons = {
                 mAudioButton,
                 mMuteButton,
+                mRecordButton,
                 mShowDialpadButton,
                 mHoldButton,
                 mSwitchCameraButton,
@@ -626,6 +641,8 @@ public class CallButtonFragment extends Fragment implements OnMenuItemClickListe
                 return mAudioButton;
             case Buttons.BUTTON_MUTE:
                 return mMuteButton;
+            case Buttons.BUTTON_RECORD:
+                return mRecordButton;
             case Buttons.BUTTON_DIALPAD:
                 return mShowDialpadButton;
             case Buttons.BUTTON_HOLD:
@@ -894,6 +911,8 @@ public class CallButtonFragment extends Fragment implements OnMenuItemClickListe
 
         void onBtnMuteClicked();
 
+        void onBtnRecordClicked();
+
     }
 
     public interface Buttons {
@@ -909,6 +928,7 @@ public class CallButtonFragment extends Fragment implements OnMenuItemClickListe
         public static final int BUTTON_PAUSE_VIDEO = 9;
         public static final int BUTTON_MANAGE_VIDEO_CONFERENCE = 10;
         public static final int BUTTON_COUNT = 11;
+        public static final int BUTTON_RECORD = 12;
     }
 
     @Override

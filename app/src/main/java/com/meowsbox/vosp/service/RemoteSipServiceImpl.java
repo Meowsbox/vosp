@@ -74,6 +74,18 @@ public class RemoteSipServiceImpl extends IRemoteSipService.Stub {
     }
 
     @Override
+    public boolean callRecord(int callId) throws RemoteException {
+        if (DEV) gLog.l(Logger.lvVerbose);
+        return SipService.getInstance().callRecord(callId);
+    }
+
+    @Override
+    public boolean callRecordStop(int callId) throws RemoteException {
+        if (DEV) gLog.l(Logger.lvVerbose);
+        return SipService.getInstance().callRecordStop(callId);
+    }
+
+    @Override
     public int callOutDefault(String number) throws RemoteException {
         if (DEV) gLog.l(Logger.lvVerbose);
         SipService sipService = SipService.getInstance();
@@ -110,6 +122,12 @@ public class RemoteSipServiceImpl extends IRemoteSipService.Stub {
     public boolean callIsMute(int callId) throws RemoteException {
         if (DEV) gLog.l(Logger.lvVerbose);
         return SipService.getInstance().getSipCallMuteState(callId);
+    }
+
+    @Override
+    public boolean callIsRecord(int callId) throws RemoteException {
+        if (DEV) gLog.l(Logger.lvVerbose);
+        return SipService.getInstance().getSipCallRecordState(callId);
     }
 
     @Override
@@ -252,6 +270,11 @@ public class RemoteSipServiceImpl extends IRemoteSipService.Stub {
     @Override
     public void rsSetString(String key, String value) throws RemoteException {
         SipService.getInstance().getLocalStore().setString(key, value);
+    }
+
+    @Override
+    public String getAppExtStoragePath() throws RemoteException {
+        return SipService.getInstance().getAppExtStoragePath();
     }
 
     @Override

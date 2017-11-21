@@ -11,6 +11,7 @@ package com.meowsbox.vosp;
 import android.app.ActionBar;
 import android.app.Activity;
 import android.app.FragmentTransaction;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.drawable.ColorDrawable;
@@ -19,8 +20,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.os.RemoteException;
+import android.support.v4.app.DialogFragment;
+import android.support.v7.app.AlertDialog;
 import android.telephony.PhoneNumberUtils;
 import android.text.TextUtils;
+import android.view.ContextThemeWrapper;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.View;
@@ -39,6 +43,9 @@ import com.meowsbox.vosp.service.Prefs;
 import com.meowsbox.vosp.service.SipCall;
 import com.meowsbox.vosp.service.SipService;
 import com.meowsbox.vosp.service.SipServiceEvents;
+import com.meowsbox.vosp.service.licensing.LicensingManager;
+import com.meowsbox.vosp.widget.DialogCallRecordLegalConfirm;
+import com.meowsbox.vosp.widget.DialogPremiumUpgrade;
 import com.meowsbox.vosp.widget.FloatingActionButtonController;
 import com.meowsbox.vosp.widget.UiMessageController;
 
@@ -111,6 +118,8 @@ public class InCallActivity extends Activity implements ServiceBindingController
     volatile private int localId = 0;
     private UiMessageController umc = null;
     private int primaryColor = Prefs.DEFAULT_UI_COLOR_PRIMARY;
+    private AlertDialog dialogPremiumRequired;
+    private boolean isPrem = false;
 
     @Override
     public void audioRouteSpeakerToggle() {
@@ -203,8 +212,60 @@ public class InCallActivity extends Activity implements ServiceBindingController
         } catch (RemoteException e) {
             e.printStackTrace();
         }
+    }
 
+    @Override
+    public void onBtnRecordClicked() {
+        if (DEBUG) gLog.l(TAG, Logger.lvDebug, "onBtnRecordClicked");
 
+        if (!isPrem) try {
+            final ContextThemeWrapper contextWrapper = new ContextThemeWrapper(this, R.style.Theme_AppCompat_Dialog_Alert);
+            AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
+            builder.setTitle(sipService.getLocalString("premium_feature", "Premium Feature"))
+                    .setMessage(sipService.getLocalString("help_premium_feature", "Upgrade to unlock this and other features."))
+                    .setCancelable(true)
+                    .setPositiveButton(sipService.getLocalString("upgrade", "Upgrade"), new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            dialog.dismiss();
+                            try {
+                                new DialogPremiumUpgrade().buildAndShow(getWindow().getContext(), sipService);
+                            } catch (RemoteException e) {
+                                if (DEBUG) e.printStackTrace();
+                            }
+                        }
+                    })
+                    .setNegativeButton(sipService.getLocalString("close", "Close"), new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            dialog.dismiss();
+                        }
+                    });
+            dialogPremiumRequired = builder.create();
+            dialogPremiumRequired.show();
+            return;
+        } catch (RemoteException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        try {
+            if (!sipService.rsGetBoolean(Prefs.KEY_BOOL_ACCEPT_CALL_RECORD_LEGAL, false)) {
+                new DialogCallRecordLegalConfirm().buildAndShow(this, sipService);
+                return;
+            }
+        } catch (RemoteException e) {
+            e.printStackTrace();
+            return;
+        }
+        try {
+            boolean isRecord = sipService.callIsRecord(boundCallId);
+            if (isRecord) sipService.callRecordStop(boundCallId);
+            else sipService.callRecord(boundCallId);
+            callButtonFragment.setRecord(!isRecord);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -253,6 +314,16 @@ public class InCallActivity extends Activity implements ServiceBindingController
     }
 
     @Override
+    public void onCallRecordStateChanged(int pjsipCallId) {
+        if (pjsipCallId != boundCallId) return; // not our call
+        try {
+            callButtonFragment.setRecord(sipService.callIsRecord(boundCallId));
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
     public void onCallStateChanged(int pjsipCallId) {
         if (pjsipCallId != boundCallId) return;
         try {
@@ -291,12 +362,12 @@ public class InCallActivity extends Activity implements ServiceBindingController
         sipService = service;
         processExtras(getIntent());
         setupView();
-
         try {
             if (!hasActiveCall(boundCallId)) {
                 queueActivtyFinish();
                 return;
             } else {
+                refreshLicenseState(sipService);
                 sipService.eventSubscribe(callbackHandler, boundCallId);
                 updateWlProxState();
             }
@@ -383,15 +454,6 @@ public class InCallActivity extends Activity implements ServiceBindingController
         super.onResume();
     }
 
-//BUGFIX: Samsung nonspec behavior, onPause on screen off - code moved to onWindowfocusChanged
-//    @Override
-//    protected void onPause() {
-////        if (sipService != null) sipService.debugDisconnect();
-//        if (wlProx != null && wlProx.isHeld())
-//            wlProx.release(); // release proximity wakelock when activity not displayed
-//        super.onPause();
-//    }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -410,6 +472,15 @@ public class InCallActivity extends Activity implements ServiceBindingController
         }
         gLog.flushHint();
     }
+
+//BUGFIX: Samsung nonspec behavior, onPause on screen off - code moved to onWindowfocusChanged
+//    @Override
+//    protected void onPause() {
+////        if (sipService != null) sipService.debugDisconnect();
+//        if (wlProx != null && wlProx.isHeld())
+//            wlProx.release(); // release proximity wakelock when activity not displayed
+//        super.onPause();
+//    }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -598,6 +669,17 @@ public class InCallActivity extends Activity implements ServiceBindingController
         return true;
     }
 
+    private void refreshLicenseState(IRemoteSipService sipService) {
+        Bundle licensingStateBundle = null;
+        try {
+            licensingStateBundle = sipService.getLicensingStateBundle();
+            if (licensingStateBundle != null)
+                isPrem = licensingStateBundle.getBoolean(LicensingManager.KEY_PREM, false);
+        } catch (RemoteException e) {
+            if (DEBUG) e.printStackTrace();
+        }
+    }
+
     private void setColors() {
         try {
             final int colorPrimary = sipService.rsGetInt(Prefs.KEY_UI_COLOR_PRIMARY, Prefs.DEFAULT_UI_COLOR_PRIMARY);
@@ -650,6 +732,7 @@ public class InCallActivity extends Activity implements ServiceBindingController
         try {
             callButtonFragment.setMute(sipService.callIsMute(boundCallId));
             callButtonFragment.setHold(sipService.getSipCallState(boundCallId) == SipCall.SIPSTATE_HOLD);
+            callButtonFragment.setRecord(sipService.callIsRecord(boundCallId));
             callButtonFragment.setSupportedAudio(0);
         } catch (RemoteException e) {
             if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
@@ -849,6 +932,24 @@ public class InCallActivity extends Activity implements ServiceBindingController
         }
 
         @Override
+        public void onCallRecordStateChanged(int pjsipCallId) throws RemoteException {
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "onCallRecordStateChanged");
+            if (pjsipCallId != boundCallId) return; // not our call
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        boolean b = sipService.callIsRecord(boundCallId);
+                        callButtonFragment.setRecord(b);
+                    } catch (RemoteException e) {
+                        if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
+
+        @Override
         public void onCallStateChanged(int pjsipCallId) throws RemoteException {
             if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "onCallStateChanged");
             if (pjsipCallId != boundCallId) return;
@@ -936,7 +1037,14 @@ public class InCallActivity extends Activity implements ServiceBindingController
 
         @Override
         public void onLicenseStateUpdated(Bundle licenseData) throws RemoteException {
-
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "onLicenseStateUpdated");
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    refreshLicenseState(sipService);
+                    populateUi();
+                }
+            });
         }
 
     }

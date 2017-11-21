@@ -28,6 +28,7 @@ import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -68,6 +69,7 @@ import org.pjsip.pjsua2.AccountInfo;
 import org.pjsip.pjsua2.CallInfo;
 import org.pjsip.pjsua2.pjsip_status_code;
 
+import java.io.File;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.Locale;
@@ -98,6 +100,7 @@ public class SipService extends Service {
     public static final int STACK_STATE_STARTED = 1;
     public static final String EXTRA_ONBOOT = "EXTRA_ONBOOT";
     public static final String EXTRA_ON_PKG_REPLACED = "EXTRA_PKG_REPLACED";
+    public static final String PATH_APP_NAME = "vosp";
     public static final String TAG = SipService.class.getName();
     static final long[] VIBE_PATTERN = {0, 250, 250};
     private static final long PROMO_INTERVAL = 3600 * 1000; // refresh interval promo UI message
@@ -241,6 +244,11 @@ public class SipService extends Service {
      */
     public static void runOnExecThread(ExecutorService executor, Runnable action) throws ExecutionException, InterruptedException {
         executor.submit(action);
+    }
+
+    static String sanitizeForFileSystem(String string) {
+        if (string == null) return null;
+        return string.replaceAll("[^a-zA-Z0-9\\.\\-]", "");
     }
 
     /**
@@ -483,6 +491,26 @@ public class SipService extends Service {
             if (DEBUG) e.printStackTrace();
         }
         return isMute;
+    }
+
+    public boolean getSipCallRecordState(final int pjSipCallId) {
+        boolean isRecording = false;
+        try {
+            isRecording = runBlockingForValue(pjsipExec, new Callable<Boolean>() {
+                @Override
+                public Boolean call() throws Exception {
+                    SipCall sipCallById = getSipCallById(pjSipCallId);
+                    if (sipCallById != null) {
+                        return sipCallById.isRecording();
+                    } else return false;
+                }
+            });
+        } catch (ExecutionException e) {
+            if (DEBUG) e.printStackTrace();
+        } catch (InterruptedException e) {
+            if (DEBUG) e.printStackTrace();
+        }
+        return isRecording;
     }
 
     public int getSipCallState(final int pjSipCallId) {
@@ -1241,13 +1269,6 @@ public class SipService extends Service {
         return result;
     }
 
-//    void debugConnect() {
-//        if (DEBUG) gLog.l(TAG ,Logger.lvVerbose);
-//        SipAccount sipAccount = new SipAccount(getInstance(), null);
-//        sipAccounts.add(sipAccount);
-//        sipAccount.init();
-//    }
-
     /**
      * Initiate a call on the specific sipAccount
      *
@@ -1295,12 +1316,97 @@ public class SipService extends Service {
         return callResult;
     }
 
+//    void debugConnect() {
+//        if (DEBUG) gLog.l(TAG ,Logger.lvVerbose);
+//        SipAccount sipAccount = new SipAccount(getInstance(), null);
+//        sipAccounts.add(sipAccount);
+//        sipAccount.init();
+//    }
+
+    boolean callRecord(final int callId) {
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "callRecord " + callId);
+        boolean result;
+        try {
+            result = runBlockingForValue(pjsipExec, new Callable<Boolean>() {
+                @Override
+                public Boolean call() throws Exception {
+                    SipCall sipCall = sipCalls.get(callId);
+                    if (sipCall == null) {
+                        if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Callid not found " + callId);
+                        return false;
+                    }
+                    boolean result = sipCall.putRecord(true);
+                    return result;
+                }
+            });
+        } catch (Exception e) {
+            gLog.l(TAG, Logger.lvError, e);
+            return false;
+        }
+        pushEventOnCallRecordStateChanged(callId);
+        return result;
+    }
+
+    boolean callRecordStop(final int callId) {
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "callRecordStop " + callId);
+        boolean result;
+        try {
+            result = runBlockingForValue(pjsipExec, new Callable<Boolean>() {
+                @Override
+                public Boolean call() throws Exception {
+                    SipCall sipCall = sipCalls.get(callId);
+                    if (sipCall == null) {
+                        if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Callid not found " + callId);
+                        return false;
+                    }
+                    boolean result = sipCall.putRecord(false);
+                    return result;
+                }
+            });
+        } catch (Exception e) {
+            gLog.l(TAG, Logger.lvError, e);
+            return false;
+        }
+        pushEventOnCallRecordStateChanged(callId);
+        return result;
+    }
+
     void debugDisconnect() {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "debugDisconnect");
     }
 
     boolean debugIsThreadRegistered() {
         return sipEndpoint.isPjsipThread();
+    }
+
+    /**
+     * Get the full path to the default external storage specific for this app.
+     *
+     * @return full path or NULL on error
+     */
+    public String getAppExtStoragePath() {
+        final String externalStorageState = Environment.getExternalStorageState();
+        switch (externalStorageState) {
+            case Environment.MEDIA_EJECTING:
+            case Environment.MEDIA_NOFS:
+            case Environment.MEDIA_MOUNTED_READ_ONLY:
+            case Environment.MEDIA_REMOVED:
+            case Environment.MEDIA_UNKNOWN:
+            case Environment.MEDIA_UNMOUNTABLE:
+            case Environment.MEDIA_UNMOUNTED:
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Problem with External Storage: " + externalStorageState);
+                return null;
+        }
+        final File externalStorageDirectory = Environment.getExternalStorageDirectory();
+
+        final String storPath = externalStorageDirectory + "/" + PATH_APP_NAME;
+        File storageDirectory = new File(storPath);
+        if (storageDirectory.isDirectory()) return storPath;
+        storageDirectory.mkdirs();
+        if (storageDirectory.isDirectory()) return storPath;
+
+        if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Problem with External Storage Path: " + storPath);
+        return null;
     }
 
     LicensingManager getLicensing() {
@@ -1527,6 +1633,29 @@ public class SipService extends Service {
             for (IRemoteSipServiceEvents subsr : eventSubsRemote) {
                 if (subsr != null) try {
                     subsr.onCallMuteStateChanged(pjsipCallId);
+                } catch (RemoteException e) {
+                    if (deadRemoteSubs == null) deadRemoteSubs = new LinkedList<>();
+                    deadRemoteSubs.add(subsr);
+                    if (DEBUG) e.printStackTrace();
+                }
+            }
+            if (deadRemoteSubs != null) for (IRemoteSipServiceEvents deadRemoteSub : deadRemoteSubs) {
+                eventSubsRemote.remove(deadRemoteSub);
+            }
+        }
+    }
+
+    void pushEventOnCallRecordStateChanged(int pjsipCallId) {
+        synchronized (eventSubs) {
+            for (SipServiceEvents subs : eventSubs) {
+                if (subs != null) subs.onCallRecordStateChanged(pjsipCallId);
+            }
+        }
+        LinkedList<IRemoteSipServiceEvents> deadRemoteSubs = null;
+        synchronized (eventSubsRemote) {
+            for (IRemoteSipServiceEvents subsr : eventSubsRemote) {
+                if (subsr != null) try {
+                    subsr.onCallRecordStateChanged(pjsipCallId);
                 } catch (RemoteException e) {
                     if (deadRemoteSubs == null) deadRemoteSubs = new LinkedList<>();
                     deadRemoteSubs.add(subsr);

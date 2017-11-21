@@ -66,6 +66,13 @@
 
             <include layout="@layout/compf_hbar_full"/>
 
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilSwCallRecordAuto"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar_full"/>
+
             <com.meowsbox.vosp.widget.CompRowHeader
                 android:id="@+id/ihServerConfig"
                 android:layout_width="match_parent"

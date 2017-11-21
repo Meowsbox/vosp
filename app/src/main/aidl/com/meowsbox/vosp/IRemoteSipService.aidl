@@ -21,12 +21,15 @@ interface IRemoteSipService {
     boolean callHoldResume(int callId);
     boolean callMute(int callId);
     boolean callMuteResume(int callId);
+    boolean callRecord(int callId);
+    boolean callRecordStop(int callId);
     int callOutDefault(String number);
     void setAudioRoute(int audioRoute);
     int getAudioRoute();
     int getServiceId();
     int getSipCallState(int callId);
     boolean callIsMute(int callId);
+    boolean callIsRecord(int callId);
     boolean callIsOutgoing(int callId);
     boolean eventSubscribe(IRemoteSipServiceEvents clientEventCallback, int sipCallId);
     boolean eventUnSubscribe(IRemoteSipServiceEvents clientEventCallback, int sipCallId);
@@ -55,6 +58,8 @@ interface IRemoteSipService {
     void rsSetInt(String key, int value);
     void rsSetLong(String key, long value);
     void rsSetString(String key, String value);
+
+    String getAppExtStoragePath();
 
     String getDeviceId();
 

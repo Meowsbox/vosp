@@ -15,11 +15,18 @@ package com.meowsbox.vosp.service;
 public interface SipServiceEvents {
 
     /**
-     * Call by the service when Call Mute state has changed.
+     * Called by the service when Call Mute state has changed.
      *
      * @param pjsipCallId
      */
     void onCallMuteStateChanged(int pjsipCallId);
+
+    /**
+     * Called by the service when Call Record state has changed.
+     *
+     * @param pjsipCallId
+     */
+    void onCallRecordStateChanged(int pjsipCallId);
 
     /**
      * Called by service on Call change of state. Be sure to retain a reference to the Call as once the call is disconnected it can no longer be retrieved.
@@ -34,4 +41,5 @@ public interface SipServiceEvents {
      * @param stackState
      */
     void onStackStateChanged(int stackState);
+
 }

@@ -14,6 +14,7 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.Bundle;
 import android.provider.ContactsContract;
 
 import java.io.ByteArrayInputStream;
@@ -52,6 +53,41 @@ public class ContactProvider {
         }
         cursor.close();
         return contactId;
+    }
+
+    /**
+     * Returns the first contact with matching phoneNumber parameter or FALSE if none found.
+     *
+     * @param context
+     * @param phoneNumber
+     * @return NULL on not found or other error
+     */
+    public static Bundle getContactBundleByNumber(Context context, String phoneNumber) {
+        Uri uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber));
+        Cursor cursor = null;
+        try {
+            cursor = context.getContentResolver().query(uri, new String[]{ContactsContract.PhoneLookup._ID, ContactsContract.PhoneLookup.LOOKUP_KEY}, null, null, null); // query may throw undoc exceptions when string is empty or invalid!
+        } catch (Exception e) {
+            e.printStackTrace();
+            if (cursor != null) cursor.close();
+            return null;
+        }
+        if (cursor == null) {
+            return null;
+        }
+        if (cursor.moveToFirst()) {
+            try {
+                final Bundle bundle = new Bundle(2);
+                bundle.putInt(ContactsContract.PhoneLookup._ID, cursor.getInt(0));
+                bundle.putString(ContactsContract.PhoneLookup.LOOKUP_KEY, cursor.getString(1));
+                return bundle;
+            } catch (Exception e) {
+                cursor.close();
+                return null;
+            }
+        }
+        cursor.close();
+        return null;
     }
 
     /**

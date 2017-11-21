@@ -145,6 +145,8 @@ public class Prefs {
 
     public static final String KEY_UI_COLOR_NOTIF_DARK = "pref_ui_color_notif_dark";
 
+    public static final String KEY_CALL_RECORD_AUTO = "pref_call_record_auto";
+
     public static final String KEY_TIP_SEEN_FIND_CALL = "pref_tip_seen_find_call";
 
     /**
@@ -161,6 +163,16 @@ public class Prefs {
      * Timestamp when user clicked to continue at welcome dialog
      */
     public static final String KEY_TS_SEEN_WELCOME = "pref_ts_seen_welcome";
+
+    /**
+     * Timestamp when user clicked to accept or decline call recording legal notice dialog
+     */
+    public static final String KEY_TS_SEEN_CALL_RECORD_LEGAL= "pref_ts_seen_call_record_legal";
+
+    /**
+     * User result of call recording legal notice dialog
+     */
+    public static final String KEY_BOOL_ACCEPT_CALL_RECORD_LEGAL= "pref_bool_accept_call_record_legal";
 
     /**
      * Timestamp when user completed the local app rating dialog
