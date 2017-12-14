@@ -42,7 +42,7 @@ public class DialogPremiumUpgrade {
 
     public DialogPremiumUpgrade build(final Context context, final IRemoteSipService sipService) throws RemoteException {
         if (context == null | sipService == null) {
-            if (DEBUG) gLog.l(TAG,Logger.lvDebug,"context or sipService NULL");
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, "context or sipService NULL");
             return null;
         }
         boolean isPrem = false;
@@ -90,8 +90,8 @@ public class DialogPremiumUpgrade {
         if (!isPrem) pcard1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (sipService == null){
-                    if (DEBUG) gLog.l(TAG,Logger.lvDebug,"sipService NULL");
+                if (sipService == null) {
+                    if (DEBUG) gLog.l(TAG, Logger.lvDebug, "sipService NULL");
                     dismiss();
                     return;
                 }
@@ -112,7 +112,7 @@ public class DialogPremiumUpgrade {
         ((ImageView) pcard2.findViewById(R.id.icon)).setImageResource(R.drawable.coffee_icon);
         ((TextView) pcard2.findViewById(R.id.title)).setText(sipService.getLocalString("become_a_patron", "Become a Patron"));
 //        ((TextView) pcard2.findViewById(R.id.subtitle)).setText(sipService.getLocalString("$0.99/month", "$0.99/month")); // place holder
-        if (skuDataPatron != null) {
+        if (skuDataPatron != null && skuDataPatron.price != null && skuDataPatron.subscriptionPeriod != null) { // skuDataPatron fields may also be null!
 //            ((TextView) pcard2.findViewById(R.id.subtitle)).setText(skuDataPatron.price + "/" + skuDataPatron.subscriptionPeriod);
 
             StringBuilder sb = new StringBuilder();
@@ -148,8 +148,8 @@ public class DialogPremiumUpgrade {
         if (!isPatron) pcard2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (sipService == null){
-                    if (DEBUG) gLog.l(TAG,Logger.lvDebug,"sipService NULL");
+                if (sipService == null) {
+                    if (DEBUG) gLog.l(TAG, Logger.lvDebug, "sipService NULL");
                     dismiss();
                     return;
                 }
@@ -182,10 +182,6 @@ public class DialogPremiumUpgrade {
 
     public void dismiss() {
         if (dialog != null) dialog.dismiss();
-    }
-
-    public void show() {
-        if (dialog != null) dialog.show();
     }
 
     public void handlePreBuyIntentResult(Context context, IRemoteSipService sipService, int result) {
@@ -234,5 +230,9 @@ public class DialogPremiumUpgrade {
             default:
                 break;
         }
+    }
+
+    public void show() {
+        if (dialog != null) dialog.show();
     }
 }

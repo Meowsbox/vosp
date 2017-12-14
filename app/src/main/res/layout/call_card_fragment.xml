@@ -74,7 +74,10 @@
         android:id="@+id/lvInCallMessages"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/primary_call_info_container"/>
+        android:layout_below="@id/primary_call_info_container"
+        android:animateLayoutChanges="true"
+        android:focusable="true"
+        android:focusableInTouchMode="true"/>
 
     <FrameLayout
         android:layout_height="match_parent"

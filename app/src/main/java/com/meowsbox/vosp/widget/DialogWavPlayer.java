@@ -56,11 +56,11 @@ public class DialogWavPlayer {
     private TextView tvMediaTime;
     private Timer seekBarTimer;
     private MediaPlayer mediaPlayer;
+    private boolean isMediaPlayerReady = false;
     private SimpleDateFormat sdfTimecode;
     private Date dTimecode;
     private String durationString = null;
     private StringBuilder sbTimeCode = new StringBuilder();
-    private boolean mediaProblem = false;
 
     public DialogWavPlayer(String wavFilePath) {
         fName = wavFilePath;
@@ -94,6 +94,7 @@ public class DialogWavPlayer {
             });
             mediaPlayer.setDataSource(filePath);
             mediaPlayer.prepare();
+
             final int duration = mediaPlayer.getDuration();
             seekBar.setMax(duration > 0 ? duration - 1 : 0);
             tvMediaTime.setText(getTimeCode(mediaPlayer));
@@ -103,6 +104,7 @@ public class DialogWavPlayer {
                 @Override
                 public void onClick(View v) {
                     if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "play onClick");
+                    if (!isMediaPlayerReady) return;
                     if (mediaPlayer.isPlaying()) mediaPlayer.pause();
                     else mediaPlayer.start();
                     updatePlayButtonState(btnPlay, mediaPlayer.isPlaying());
@@ -113,7 +115,7 @@ public class DialogWavPlayer {
 
                 @Override
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    tvMediaTime.setText(getTimeCode(progress,duration));
+                    tvMediaTime.setText(getTimeCode(progress, duration));
                 }
 
                 @Override
@@ -123,14 +125,15 @@ public class DialogWavPlayer {
 
                 @Override
                 public void onStopTrackingTouch(SeekBar seekBar) {
-                    mediaPlayer.seekTo(seekBar.getProgress());
-                    tvMediaTime.setText(getTimeCode(mediaPlayer));
+                    if (isMediaPlayerReady) {
+                        mediaPlayer.seekTo(seekBar.getProgress());
+                        tvMediaTime.setText(getTimeCode(mediaPlayer));
+                    }
                     isSeekBarTouched = false;
                 }
             });
-
+            isMediaPlayerReady = true;
         } catch (IOException e) {
-            mediaProblem = true;
             if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
         }
 
@@ -165,7 +168,7 @@ public class DialogWavPlayer {
             }
         });
 
-        if (!mediaProblem) {
+        if (isMediaPlayerReady) {
             mediaPlayer.start();
             updatePlayButtonState(btnPlay, mediaPlayer.isPlaying());
         } else {
@@ -194,6 +197,7 @@ public class DialogWavPlayer {
     private void destroy() {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "onDismiss");
         if (mediaPlayer != null) {
+            isMediaPlayerReady = false;
             mediaPlayer.stop();
             mediaPlayer.release();
             mediaPlayer = null;
@@ -254,6 +258,7 @@ public class DialogWavPlayer {
                         handler.post(new Runnable() {
                             @Override
                             public void run() {
+                                if (!isMediaPlayerReady) return;
                                 if (!isSeekBarTouched) {
                                     seekBar.setProgress(mp.getCurrentPosition());
                                     tvMediaTime.setText(getTimeCode(mediaPlayer));

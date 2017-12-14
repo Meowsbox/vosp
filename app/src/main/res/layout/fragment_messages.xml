@@ -8,24 +8,17 @@
   ~ Refer to the project LICENSE and NOTICE files for details.
   -->
 
-<LinearLayout
+
+<ListView
+    android:id="@+id/lvMessages"
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:animateLayoutChanges="true"
-    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:divider="@null"
+    android:fadingEdge="none"
     android:focusable="true"
-    android:focusableInTouchMode="true"
-    android:orientation="vertical">
+    android:focusableInTouchMode="true"/>
 
-    <ListView
-        android:id="@+id/lvMessages"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:animateLayoutChanges="true"
-        android:clipToPadding="false"
-        android:divider="@null"
-        android:fadingEdge="none"/>
-
-</LinearLayout>
 

@@ -65,6 +65,7 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
@@ -682,6 +683,18 @@ public class DialpadFragment extends Fragment
         mOverflowMenuButton.setOnTouchListener(mOverflowPopupMenu.getDragToOpenListener());
         mOverflowMenuButton.setOnClickListener(this);
         mOverflowMenuButton.setVisibility(isDigitsEmpty() ? View.INVISIBLE : View.VISIBLE);
+    }
+
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        getActivity().getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+    }
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+        getActivity().getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED);
     }
 
     @Override
