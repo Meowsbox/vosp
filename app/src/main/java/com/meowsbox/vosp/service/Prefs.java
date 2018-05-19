@@ -127,15 +127,25 @@ public class Prefs {
     public static final float KEY_MEDIA_PREAMP_TX_DEFAULT = 1.5f;
 
     /**
+     * Media Audio Input Audio Source, see MediaRecorder.AudioSource for possible values.
+     */
+    public static final String KEY_MEDIA_AUDIO_MIC_SOURCE = "media_audio_mic_source";
+
+    /**
      * Use ICE (interactive connectivity establishment) RFC 5245
      * Use getAccountKey method interact with his preference.
      */
     public static final String KEY_ACCOUNT_SUF_USE_ICE = "use_ice";
     public static final String KEY_DOZE_DISABLE = "pref_doze_disable";
     public static final String KEY_DOZE_DISABLE_SU = "pref_doze_disable_su";
+    public static final String KEY_DOZE_CONTROLER_MODE = "pref_doze_controller_mode";
+    public static final String KEY_DOZE_AM_RELAX = "pref_doze_am_relax";
+    public static final String KEY_DOZE_LIGHT_ONLY= "pref_doze_light_only";
     public static final String KEY_STUN_SERVER = "pref_stun_server";
     public static final String KEY_HANDLE_OUTGOING_ALL = "pref_handle_outgoing_all";
     public static final String KEY_UI_COLOR_PRIMARY = "pref_ui_color_primary";
+
+    public static final String KEY_UI_NOTIF_LOW_PRI = "pref_ui_notif_low_pri";
 
     public static final String KEY_VIBRATE_ON_RING = "pref_vibrate_on_ring";
 

@@ -95,11 +95,21 @@ public class Logger {
 //            loggerSwitch(level, java.util.Arrays.toString(logText));
 //        }
 //    }
-
     public void setLogWriter(LogWriter logWriter) {
         if (logWriter == null) return;
         this.logWriter = logWriter;
         lt(lvVerbose, TAG, "LogWriter Bound");
+    }
+
+    public void l(final String tag, final int level, final Throwable logObject) {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(logObject.toString());
+        for (StackTraceElement traceElement : logObject.getStackTrace()) {
+            sb.append("\tat ");
+            sb.append(traceElement);
+            sb.append("\r\n");
+        }
+        lt(level, tag, sb.toString());
     }
 
     public void l(final String tag, final int level, final Object logObject) {

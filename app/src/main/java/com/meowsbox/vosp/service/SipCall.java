@@ -141,7 +141,7 @@ public class SipCall {
         if (ringbackGenerator.isPlaying()) ringbackGenerator.stop();
         if (sipStateCurrent != SIPSTATE_DISCONNECTED)
             putHangup(); // ensure call dependencies are properly closed (ie audio, etc)
-        wakeLockControl(false,"pjsipCallId " + pjsipCall.getId());
+        wakeLockControl(false, "pjsipCallId " + pjsipCall.getId());
         pjsipCall.delete();
         pjsipCall = null;
     }
@@ -261,6 +261,7 @@ public class SipCall {
         CallOpParam prm = new CallOpParam();
         prm.setStatusCode(pjsip_status_code.PJSIP_SC_DECLINE);
         try {
+            stopMediaImmediate(pjsipCall);
             pjsipCall.hangup(prm);
             statCallStopTime = System.currentTimeMillis();
             prm.delete();
@@ -283,10 +284,11 @@ public class SipCall {
         prm.setStatusCode(pjsip_status_code.PJSIP_SC_OK);
         try {
             if (ringbackGenerator != null && ringbackGenerator.isPlaying()) ringbackGenerator.stop();
+            stopMediaImmediate(pjsipCall);
             pjsipCall.hangup(prm);
             statCallStopTime = System.currentTimeMillis();
             prm.delete();
-            wakeLockControl(false,"pjsipCallId " + pjsipCall.getId());
+            wakeLockControl(false, "pjsipCallId " + pjsipCall.getId());
         } catch (Exception e) {
             SipService.getInstance().getLoggerInstanceShared().l(TAG, Logger.lvDebug, e);
             return false;
@@ -415,6 +417,43 @@ public class SipCall {
         else return pjsipCall.recordStop();
     }
 
+    /**
+     * Immediately stop all call media and recording regardless of call state. Useful for handling network change or interruption: PJSIP may not reliably terminate call immediately leading to poor UX.
+     *
+     * @param call
+     */
+    private void stopMediaImmediate(PjsipCall call) {
+        if (call == null) {
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, "stopMediaImmediate PjsipCall NULL");
+            return;
+        }
+        try {
+            final CallInfo callInfo = call.getInfo();
+            if (callInfo == null) {
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, "stopMediaImmediate callInfo NULL");
+                return;
+            }
+            final CallMediaInfoVector cmiv = callInfo.getMedia();
+            for (int i = 0; i < cmiv.size(); i++) {
+                CallMediaInfo cmi = cmiv.get(i);
+                if (cmi.getType() == pjmedia_type.PJMEDIA_TYPE_AUDIO) {
+                    Media m = call.getMedia(i);
+                    AudioMedia am = AudioMedia.typecastFromMedia(m);
+                    AudDevManager audDevManager = SipService.getInstance().getSipEndpoint().getAudDevManager();
+                    audDevManager.getCaptureDevMedia().stopTransmit(am);
+                    am.stopTransmit(audDevManager.getPlaybackDevMedia());
+                }
+
+            }
+        } catch (Exception e) {
+            if (DEBUG) {
+                gLog.l(TAG, Logger.lvDebug, e);
+                e.printStackTrace();
+            }
+        }
+        putRecord(false);
+    }
+
     private void updateRecordAuto() {
         autoRecord = SipService.getInstance().getLocalStore().getBoolean(Prefs.KEY_CALL_RECORD_AUTO, false);
     }
@@ -423,11 +462,11 @@ public class SipCall {
         if (acquire) {
             if (isWakeLocked) return;
             isWakeLocked = true;
-            SipService.getInstance().wakelockPartialAcquire(tag);
+            SipService.getInstance().wlSipService(acquire, tag, null);
         } else {
             if (!isWakeLocked) return;
             isWakeLocked = false;
-            SipService.getInstance().wakelockPartialRelease(tag);
+            SipService.getInstance().wlSipService(acquire, tag, null);
 
         }
     }
@@ -456,8 +495,10 @@ public class SipCall {
                 final int pjsipCallId = ci.getId(); // get pjsipCallId before native call delete
                 pjsip_inv_state pjcallstate = ci.getState();
                 SipService.getInstance().getLoggerInstanceShared().l(TAG, Logger.lvVerbose, "pjcallstate " + pjcallstate.toString());
+
                 if (pjcallstate != pjsip_inv_state.PJSIP_INV_STATE_NULL && pjcallstate != pjsip_inv_state.PJSIP_INV_STATE_DISCONNECTED)
-                    wakeLockControl(true,"pjsipCallId " + pjsipCall.getId());
+                    wakeLockControl(true, "pjsipCallId " + pjsipCall.getId());
+
                 if (pjcallstate == pjsip_inv_state.PJSIP_INV_STATE_DISCONNECTED) {
                     recordStop();
                     if (ringbackGenerator != null) ringbackGenerator.stop();
@@ -481,7 +522,7 @@ public class SipCall {
                     }).start();
                     // at this point sipCall is no longer in sipCalls list
 //                    putHangup(); // hang up our end of call and close audio dependencies
-                    wakeLockControl(false,"pjsipCallId " + pjsipCall.getId());// call has been disconnected, release wakeLockPartial
+                    wakeLockControl(false, "pjsipCallId " + pjsipCall.getId());// call has been disconnected, release wakeLockPartial
                 } else if (pjcallstate == pjsip_inv_state.PJSIP_INV_STATE_CONFIRMED) {
                     sipStateCurrent = SIPSTATE_ACCEPTED;
                     if (ringbackGenerator != null) ringbackGenerator.stop();
@@ -491,10 +532,11 @@ public class SipCall {
                     if (ringbackGenerator == null) ringbackGenerator = new RingbackGenerator();
                     ringbackGenerator.start();
                 }
-
-
             } catch (Exception e) {
-
+                if (DEBUG) {
+                    e.printStackTrace();
+                    gLog.l(TAG, Logger.lvDebug, e);
+                }
             }
         }
 
@@ -532,6 +574,10 @@ public class SipCall {
                         if (DEBUG)
                             gLog.l(TAG, Logger.lvVerbose, "AM Level RX TX " + am.getRxLevel() + " " + am.getTxLevel());
                     } catch (Exception e) {
+                        if (DEBUG) {
+                            e.printStackTrace();
+                            gLog.l(TAG, Logger.lvDebug, e);
+                        }
                         continue;
                     }
                     if (autoRecord) {

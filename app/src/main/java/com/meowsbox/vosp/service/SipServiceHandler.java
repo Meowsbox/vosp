@@ -10,6 +10,9 @@ package com.meowsbox.vosp.service;
 
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -73,7 +76,7 @@ class SipServiceHandler extends Handler {
                 onNewOutgoingCall(extras);
                 break;
             case SipServiceMessages.MSG_CONNECTIVITY_CHANGED:
-                onConnectivityChanged(msg.arg2);
+                onConnectivityChanged(msg.arg2, msg.getData().getBoolean("netdiff"), extras.getString("wlsource"));
                 break;
             case SipServiceMessages.MSG_DOZE_STATE_CHANGED:
                 onDozeStateChanged();
@@ -193,15 +196,28 @@ class SipServiceHandler extends Handler {
         notificationController.clearUnSeenCallMissedCounter();
     }
 
-    private void onConnectivityChanged(final int wakeLockRelease) { // wakelock is in effect from caller
+    private void onConnectivityChanged(final int arg2, final boolean netdiff, final String wlSource) { // wakelock is in effect from caller
         try {
             sipService.runOnServiceThread(new Runnable() {
                 @Override
                 public void run() {
                     if (sipService.isNetworkAvailable()) { // has network connectivity
                         sipService.uiMessageDismissByType(InAppNotifications.TYPE_WARN_NO_NETWORK); // clear any previous shown no_network ui messages
+
+                        //BUGFIX: force reset process bind to interface needed on some devices
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
+                            ConnectivityManager.setProcessDefaultNetwork(null);
+                        else sipService.getConnectivityManager().bindProcessToNetwork(null);
+
                         if (!sipService.isStackReady()) sipService.stackStart();
-                        sipService.accountsRegisterAll(true);
+                        else {
+                            final NetworkInfo activeNetworkInfo = sipService.getConnectivityManager().getActiveNetworkInfo();
+                            if (activeNetworkInfo != null) {
+                                sipService.getSipEndpoint().networkTypeChange(activeNetworkInfo.getType());
+                                sipService.updateAccountUdpKeepAliveFromEndpointAll();
+                            }
+                            if (netdiff) sipService.getSipEndpoint().regenTransport();
+                        }
                         if (sipService.hasActiveCalls()) UiMessagesCommon.showInCallNetworkChange(sipService);
                     } else { // no network connectivity
                         UiMessagesCommon.showNoNetwork(sipService);
@@ -211,8 +227,9 @@ class SipServiceHandler extends Handler {
 //                        sipService.wakelockPartialReleaseAll();
                     }
                     sipService.updateWifiLockState();
-                    if (wakeLockRelease == 0)
-                        sipService.wakelockPartialRelease("onConnectivityChanged"); // release caller's wakelock
+                    if (arg2 == 0) {
+                        sipService.wlOnNetworkChange(false, wlSource, null); // release caller's wakelock
+                    }
                 }
             });
         } catch (ExecutionException e) {
@@ -224,6 +241,7 @@ class SipServiceHandler extends Handler {
 
     private void onDozeStateChanged() {
         sipService.refreshRegistrationOnDoze();
+        sipService.refreshDozeController();
     }
 
     private void onEpTransportFlush() {
@@ -319,12 +337,14 @@ class SipServiceHandler extends Handler {
                 if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "MSG_SCREEN_STATE_CHANGED");
                 PjSipTimerWrapper.getInstance().onScreenStateChanged(false);
                 sipService.getScheduledRun().onScreenStateChanged(false);
+                sipService.refreshDozeController();
                 break;
             case 1: // on
                 if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "MSG_SCREEN_STATE_CHANGED");
                 PjSipTimerWrapper.getInstance().onScreenStateChanged(true);
                 sipService.getScheduledRun().onScreenStateChanged(true);
                 sipService.refreshRegistrationsIfRequired();
+                sipService.refreshDozeController();
                 break;
         }
     }
@@ -407,7 +427,7 @@ class SipServiceHandler extends Handler {
                     gLog.l(TAG, Logger.lvVerbose, "onStopService");
                     sipService.stopForeground(true);
                     gLog.l(TAG, Logger.lvVerbose, "onStopService");
-                    sipService.wakelockPartialReleaseAll();
+                    sipService.wlReleaseAll();
                     gLog.l(TAG, Logger.lvVerbose, "onStopService");
                     sipService.stopSelf();
                     gLog.l(TAG, Logger.lvVerbose, "onStopService");
@@ -427,8 +447,7 @@ class SipServiceHandler extends Handler {
         if (data != null) {
             tag = data.getString(SipServiceMessages.EXTRA_WAKELOCK_TAG, "not specified");
         }
-        if (acquire) sipService.wakelockPartialAcquire(tag);
-        else sipService.wakelockPartialRelease(tag);
+        sipService.wlSipService(acquire,tag,null);
     }
 
 }

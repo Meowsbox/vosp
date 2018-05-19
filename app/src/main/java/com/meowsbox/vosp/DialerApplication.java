@@ -39,7 +39,7 @@ public class DialerApplication extends Application implements ServiceBindingCont
     public static final int LOGGER_VISIBILITY = DEV ? Logger.lvVerbose : Logger.lvDebug; // minimum log level before output to LogCat
     public static boolean DEBUG = true; // debug flag - setting to false will disable almost all logging
     public IRemoteSipService sipService;
-    private volatile Logger gLog = new Logger(LOGGER_VERBOSITY);
+    private static volatile Logger gLog = new Logger(LOGGER_VERBOSITY);
     private ServiceBindingController mServiceController = null;
     private ContactPhotoManager mContactPhotoManager;
 
@@ -60,7 +60,7 @@ public class DialerApplication extends Application implements ServiceBindingCont
         ReLinker.log(relinkerLogger).loadLibraryBlocking(this, "sqliteX", null);
     }
 
-    public Logger getLoggerInstanceShared() {
+    public static Logger getLoggerInstanceShared() {
         return gLog;
     }
 

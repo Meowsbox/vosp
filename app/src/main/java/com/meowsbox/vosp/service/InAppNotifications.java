@@ -69,4 +69,8 @@ public class InAppNotifications {
     public static final int VALUE_ONCLICK_HINT_GOPLAYAPP= 6; // show app on Google Play
     public static final int VALUE_ONCLICK_HINT_DOZE_OPTIMIZE_HELP = 7; // show doze battery optimization disable dialog
     public static final int VALUE_ONCLICK_HINT_GO_POWER_SAVE_MODE= 8;
+    public static final int VALUE_ONCLICK_HINT_DOZE_AM_RELAX_HELP = 9;
+    public static final int VALUE_ONCLICK_HINT_DOZE_LIGHT_ONLY_HELP = 10;
+    public static final int VALUE_ONCLICK_HINT_DOZE_CONTROLLER_HELP = 11;
+
 }

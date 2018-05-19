@@ -316,6 +316,11 @@ public class NotificationController {
         Notification.Builder builder = new Notification.Builder(context)
                 .setSmallIcon(R.drawable.ic_noti_default)
                 .setContentTitle(SipService.getInstance().getI18n().getString("app_name", "VOSP"));
+
+        if (SipService.getInstance().getLocalStore().getBoolean(Prefs.KEY_UI_NOTIF_LOW_PRI, false))
+            builder.setPriority(Notification.PRIORITY_MIN);
+        else builder.setPriority(Notification.PRIORITY_DEFAULT);
+
         return builder;
     }
 

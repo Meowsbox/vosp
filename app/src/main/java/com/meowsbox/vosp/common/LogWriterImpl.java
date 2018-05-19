@@ -126,7 +126,7 @@ public class LogWriterImpl implements Logger.LogWriter {
     @Override
     public void onLog(final int level, final String tag, final String text) {
         if (mDb == null) {
-            Log.d(tag,text);
+            Log.d(tag, text);
             return; // no mDB to write!
         }
         if (logBuffer != null) logBuffer.add(new LogItem(level, tag, text));
@@ -174,14 +174,18 @@ public class LogWriterImpl implements Logger.LogWriter {
         });
     }
 
-    private void putLog(LogItem logItem) {
+    private void putLog(final LogItem logItem) {
         if (logItem == null || putLog == null || mDb == null) return;
         putLog.clearBindings();
         putLog.bindLong(1, logItem.time);
         putLog.bindLong(2, logItem.level);
         putLog.bindString(3, logItem.tag);
         putLog.bindString(4, logItem.text);
-        putLog.execute();
+        try {
+            putLog.execute();
+        } catch (Exception e) {
+            Log.d(TAG,e.getLocalizedMessage());
+        }
     }
 
     class LogItem {

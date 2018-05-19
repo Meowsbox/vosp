@@ -63,17 +63,6 @@ public class SipAccount extends Account {
     private volatile boolean isWatchDogEnabled = false;
     private volatile int retryCount = 0;
     private int watchDogId = -1;
-    //    public boolean init() {
-//        debug_populateDefaultAccount();
-//        if (accountConfig == null) createAccount();
-//        try {
-//            create(accountConfig);
-//        } catch (Exception e) {
-//            if (DEBUG) gLog.l(TAG ,Logger.lvDebug, e);
-//            return false;
-//        }
-//        return true;
-//    }
     private boolean useTcp = false;
     private boolean useStun = true;
     private boolean useIce = true;
@@ -177,16 +166,18 @@ public class SipAccount extends Account {
 
     @Override
     public synchronized void delete() {
-        if (DEBUG) {
-            SipService.getInstance().getLoggerInstanceShared().l(TAG, Logger.lvVerbose, "delete");
-//            new Exception().printStackTrace();
-        }
+        if (DEBUG) SipService.getInstance().getLoggerInstanceShared().l(TAG, Logger.lvVerbose, "delete");
+        wdCancelSetReg();
         super.delete();
     }
 
     @Override
     public void setRegistration(boolean renew) throws Exception {
         wdCancelSetReg(); // cancel existing wd
+        if (!renew) {
+            super.setRegistration(renew);
+            return; // disconnect registration do not need wd
+        }
         // schedule new wd
         watchDogId = sipService.getScheduledRun().schedule(WD_REG_TIMEOUT, new Runnable() {
             final int accid = getId();
@@ -226,7 +217,6 @@ public class SipAccount extends Account {
         message.arg1 = SipServiceMessages.MSG_CALL_INCOMING;
         message.arg2 = prm.getCallId();
         sipService.queueCommand(message);
-//        sipService.onCallIncoming(sipCall);
     }
 
     @Override
@@ -294,6 +284,11 @@ public class SipAccount extends Account {
         retryCount = 0;
     }
 
+    void updateUdpKeepAliveFromEndpoint() {
+        AccountNatConfig natConfig = accountConfig.getNatConfig();
+        natConfig.setUdpKaIntervalSec(sipService.getSipEndpoint().getKeepAliveUdpCurrent());
+    }
+
     private void createAccount() {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "createAccount");
         accountConfig = new AccountConfig();
@@ -311,7 +306,7 @@ public class SipAccount extends Account {
         }
 
         accountConfig.getIpChangeConfig().setReinviteFlags(pjsua_call_flag.PJSUA_CALL_UPDATE_CONTACT.swigValue());
-        accountConfig.getIpChangeConfig().setShutdownTp(false);
+        accountConfig.getIpChangeConfig().setShutdownTp(true);
 
         accountConfig.getMediaConfig().getTransportConfig().setPort(Long.parseLong(ACCOUNT_MEDIA_PORT_BEGIN));
         accountConfig.getMediaConfig().getTransportConfig().setPortRange(Long.parseLong(ACCOUNT_MEDIA_PORT_END));
@@ -416,7 +411,7 @@ public class SipAccount extends Account {
      * Watchdog: cancels the future callback on registration status.
      */
     private void wdCancelSetReg() {
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "wdCancelSetReg");
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "wdCancelSetReg " + accountName);
         if (watchDogId >= 0) sipService.getScheduledRun().cancel(watchDogId);
         watchDogId = -1;
     }

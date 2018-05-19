@@ -12,6 +12,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
+import android.os.Bundle;
 import android.support.v4.content.WakefulBroadcastReceiver;
 
 import com.meowsbox.vosp.common.Logger;
@@ -38,7 +39,8 @@ public class NetworkStatusReceiver extends WakefulBroadcastReceiver {
         SipService sipService = SipService.getInstance();
         if (sipService == null) return; // service not yet running
         if (DEBUG) sipService.getLoggerInstanceShared().l(TAG, Logger.lvVerbose, intent.getAction());
-        sipService.onNetworkStateChanged(); // notify service
+        final Bundle intentExtras = intent.getExtras();
+        sipService.onNetworkStateChanged(intentExtras); // notify service
         completeWakefulIntent(intent);
     }
 }

@@ -22,13 +22,17 @@ import org.pjsip.pjsua2.CodecInfo;
 import org.pjsip.pjsua2.CodecInfoVector;
 import org.pjsip.pjsua2.Endpoint;
 import org.pjsip.pjsua2.EpConfig;
+import org.pjsip.pjsua2.IntVector;
+import org.pjsip.pjsua2.IpChangeParam;
 import org.pjsip.pjsua2.LogEntry;
 import org.pjsip.pjsua2.LogWriter;
 import org.pjsip.pjsua2.OnIpChangeProgressParam;
+import org.pjsip.pjsua2.OnNatCheckStunServersCompleteParam;
+import org.pjsip.pjsua2.OnNatDetectionCompleteParam;
+import org.pjsip.pjsua2.OnSelectAccountParam;
 import org.pjsip.pjsua2.OnTransportStateParam;
 import org.pjsip.pjsua2.StringVector;
 import org.pjsip.pjsua2.TransportConfig;
-import org.pjsip.pjsua2.pjsip_transport_state;
 import org.pjsip.pjsua2.pjsip_transport_type_e;
 
 /**
@@ -151,7 +155,7 @@ public class SipEndpoint {
             // Create SIP transport. Error handling sample is shown
             final LocalStore localStore = SipService.getInstance().getLocalStore();
             int rc = localStore.getInt(Prefs.KEY_STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_COUNT, 0);
-            if (DEBUG) gLog.l(TAG,Logger.lvDebug,"Create transport failure count: "+rc);
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Create transport failure count: " + rc);
             if (!createTransport()) {
                 gLog.l(TAG, Logger.lvDebug, "FATAL, restart - failed to create transport");
                 if (rc > STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_MAX) {
@@ -163,8 +167,8 @@ public class SipEndpoint {
                     SipService.getInstance().queueCommand(message, 1000);
                 }
             } else {
-                localStore.setInt(Prefs.KEY_STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_COUNT,0);
-                if (DEBUG) gLog.l(TAG,Logger.lvDebug,"Create transport failure count RESET");
+                localStore.setInt(Prefs.KEY_STACK_RESTART_ON_CREATE_TRANSPORT_FAILURE_COUNT, 0);
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Create transport failure count RESET");
             }
 
             // Start the library
@@ -179,28 +183,37 @@ public class SipEndpoint {
         }
     }
 
-//    public void regenTransport() {
-//        if (DEBUG) gLog.l(TAG ,Logger.lvVerbose);
-//        try {
-//            ep.transportClose(tidTcp);
-//            ep.transportClose(tidUdp);
-//            if (!createTransport()) {
-//                gLog.l(TAG ,Logger.lvError, "FATAL, restart - failed to create transport");
-//                Message message = new Message();
-//                message.arg1 = SipServiceMessages.MSG_STACK_RESTART;
-//                SipService.getInstance().queueCommand(message);
-//            }
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//    }
-
     public boolean isAlive() {
         return isAlive;
     }
 
     public boolean isTransportTCP() {
         return isTransportTCP;
+    }
+
+    public void networkTypeChange(int type) {
+        updateKeepAliveIntervals(type);
+        try {
+            ep.tcpKaInterval(KEEP_ALIVE_TCP_CURRENT);
+        } catch (Exception e) {
+            if (DEBUG) {
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
+            }
+        }
+    }
+
+    public void regenTransport() {
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "regenTransport");
+
+        try {
+            final IpChangeParam ipChangeParam = new IpChangeParam();
+            ipChangeParam.setRestartListener(true);
+            ipChangeParam.setRestartLisDelay(5000);
+            ep.handleIpChange(ipChangeParam);
+            ipChangeParam.delete();
+        } catch (Exception e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
+        }
     }
 
     public void setSampleRate(int sampleRate) {
@@ -215,9 +228,27 @@ public class SipEndpoint {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "destroy");
         isAlive = false;
         wdTransport = false;
+        try {
+            ep.hangupAllCalls();
+        } catch (Exception e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
+        }
+        try {
+            final IntVector intVector = ep.transportEnum();
+            for (int i = 0; i < intVector.size(); i++) {
+                ep.transportClose(intVector.get(i));
+            }
+        } catch (Exception e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
+
+        }
         // per pjsip docs, must call libDestroy BEFORE delete
         try {
             ep.libDestroy();
+        } catch (Exception e) {
+            if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
+        }
+        try {
             ep.delete();
         } catch (Exception e) {
             if (DEBUG) gLog.l(TAG, Logger.lvDebug, e);
@@ -239,44 +270,41 @@ public class SipEndpoint {
     }
 
     private boolean createTransport() {
+        boolean result = true;
         try {
             Integer networkType = SipService.getInstance().getNetworkType();
-            if (networkType != null) switch (SipService.getInstance().getNetworkType()) {
-                case ConnectivityManager.TYPE_WIFI:
-                    KEEP_ALIVE_TCP_CURRENT = SipService.getInstance().getLocalStore().getInt(Prefs.KEY_KA_TCP_WIFI, KEEP_ALIVE_TCP_WIFI);
-                    KEEP_ALIVE_UDP_CURRENT = SipService.getInstance().getLocalStore().getInt(Prefs.KEY_KA_TCP_WIFI, KEEP_ALIVE_TCP_WIFI);
-                    break;
-                case ConnectivityManager.TYPE_MOBILE:
-                    KEEP_ALIVE_TCP_CURRENT = SipService.getInstance().getLocalStore().getInt(Prefs.KEY_KA_TCP_MOBILE, KEEP_ALIVE_TCP_MOBILE);
-                    KEEP_ALIVE_UDP_CURRENT = SipService.getInstance().getLocalStore().getInt(Prefs.KEY_KA_TCP_MOBILE, KEEP_ALIVE_TCP_MOBILE);
-                    break;
+            if (networkType != null) updateKeepAliveIntervals(networkType);
+            ep.tcpKaInterval(KEEP_ALIVE_TCP_CURRENT); // note, equiv UDP KA is setting is in the Account NatConfig
+
+            try {
+                // create TCP transport
+                isTransportTcpValid = false;
+                transportConfig = new TransportConfig();
+                tidTcp = ep.transportCreate(pjsip_transport_type_e.PJSIP_TRANSPORT_TCP, transportConfig);// TCP transport requires the sip UI includes transport=TCP
+                transportConfig.delete();
+                isTransportTcpValid = true;
+                isTransportTCP = true;
+            } catch (Exception e) {
+                result = false;
+                gLog.l(TAG, Logger.lvVerbose, e);
             }
-            ep.tcpKaInterval(KEEP_ALIVE_TCP_CURRENT);
-            if (DEBUG) {
-                gLog.l(TAG, Logger.lvVerbose, "KEEP_ALIVE_TCP_CURRENT " + KEEP_ALIVE_TCP_CURRENT);
-                gLog.l(TAG, Logger.lvVerbose, "KEEP_ALIVE_UDP_CURRENT " + KEEP_ALIVE_UDP_CURRENT);
+
+            try {
+                // create UDP transport
+                isTransportUdpValid = false;
+                transportConfig = new TransportConfig();
+                tidUdp = ep.transportCreate(pjsip_transport_type_e.PJSIP_TRANSPORT_UDP, transportConfig);
+                transportConfig.delete();
+                isTransportUdpValid = true;
+            } catch (Exception e) {
+                result = false;
+                gLog.l(TAG, Logger.lvVerbose, e);
             }
-
-            // create TCP transport
-            isTransportTcpValid = false;
-            transportConfig = new TransportConfig();
-            tidTcp = ep.transportCreate(pjsip_transport_type_e.PJSIP_TRANSPORT_TCP, transportConfig);// TCP transport requires the sip UI includes transport=TCP
-            transportConfig.delete();
-            isTransportTcpValid = true;
-
-            // create UDP transport
-            isTransportUdpValid = false;
-            transportConfig = new TransportConfig();
-            tidUdp = ep.transportCreate(pjsip_transport_type_e.PJSIP_TRANSPORT_UDP, transportConfig);
-            transportConfig.delete();
-            isTransportUdpValid = true;
-
-            isTransportTCP = true;
         } catch (Exception e) {
-            e.printStackTrace();
-            return false;
+            result = false;
+            gLog.l(TAG, Logger.lvVerbose, e);
         }
-        return true;
+        return result;
     }
 
     private void debugCodecPrint() {
@@ -308,6 +336,25 @@ public class SipEndpoint {
         }
     }
 
+    private void updateKeepAliveIntervals(int networkType) {
+        switch (networkType) {
+            case ConnectivityManager.TYPE_WIFI:
+                KEEP_ALIVE_TCP_CURRENT = SipService.getInstance().getLocalStore().getInt(Prefs.KEY_KA_TCP_WIFI, KEEP_ALIVE_TCP_WIFI);
+                KEEP_ALIVE_UDP_CURRENT = SipService.getInstance().getLocalStore().getInt(Prefs.KEY_KA_TCP_WIFI, KEEP_ALIVE_TCP_WIFI);
+                break;
+            case ConnectivityManager.TYPE_MOBILE:
+            default:
+                KEEP_ALIVE_TCP_CURRENT = SipService.getInstance().getLocalStore().getInt(Prefs.KEY_KA_TCP_MOBILE, KEEP_ALIVE_TCP_MOBILE);
+                KEEP_ALIVE_UDP_CURRENT = SipService.getInstance().getLocalStore().getInt(Prefs.KEY_KA_TCP_MOBILE, KEEP_ALIVE_TCP_MOBILE);
+                break;
+        }
+
+        if (DEBUG) {
+            gLog.l(TAG, Logger.lvVerbose, "KEEP_ALIVE_TCP_CURRENT " + KEEP_ALIVE_TCP_CURRENT);
+            gLog.l(TAG, Logger.lvVerbose, "KEEP_ALIVE_UDP_CURRENT " + KEEP_ALIVE_UDP_CURRENT);
+        }
+    }
+
     class SipLogWriter extends LogWriter {
         StringBuilder sb = new StringBuilder();
 
@@ -327,19 +374,16 @@ public class SipEndpoint {
     class EndPointExtended extends Endpoint {
         @Override
         public void onTransportState(OnTransportStateParam prm) {
-            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, prm.getState().toString());
-            if (wdTransport && prm.getState() == pjsip_transport_state.PJSIP_TP_STATE_SHUTDOWN) {
-                if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "Transport shutdown - refreshing registrations...");
-                Message msg = new Message();
-                msg.arg1 = SipServiceMessages.MSG_ACCOUNTS_REGISTER_ALL;
-                SipService.getInstance().queueCommand(msg);
-            }
+            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "onTransportState " + prm.getState().toString());
             super.onTransportState(prm);
         }
 
         @Override
         public void onIpChangeProgress(OnIpChangeProgressParam prm) {
-            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, prm.getOp().toString());
+            if (DEBUG) {
+                gLog.l(TAG, Logger.lvVerbose, "onIpChangeProgress op" + prm.getOp().toString());
+                gLog.l(TAG, Logger.lvVerbose, "onIpChangeProgress getRegInfo" + prm.getRegInfo().toString());
+            }
         }
     }
 

@@ -27,18 +27,20 @@ public class UiMessagesCommon {
         sipService.showUiMessage(InAppNotifications.TYPE_WARN, bundle);
     }
 
+    static public void showBatterySaveModeEnabled(SipService sipService) {
+        sipService.uiMessageDismissByType(InAppNotifications.TYPE_INFO_BATTERY_SAVER_ENABLED);
+        Bundle bundle = new Bundle();
+        bundle.putString("message", sipService.getI18n().getString("uim_batterysave", "Missing calls?"));
+        bundle.putString("message2", sipService.getI18n().getString("uim_batterysave_2", "Battery saver mode may block incoming calls when battery is low."));
+        bundle.putInt(InAppNotifications.KEY_ONCLICK_HINT, InAppNotifications.VALUE_ONCLICK_HINT_GO_POWER_SAVE_MODE);
+        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
+        sipService.showUiMessage(InAppNotifications.TYPE_INFO_BATTERY_SAVER_ENABLED, bundle);
+    }
+
     static public void showBluetoothScoUnavailable(SipService sipService) {
         Bundle bundle = new Bundle();
         bundle.putString("message", sipService.getI18n().getString("bluetoth_sco_unavailable", "Bluetooth SCO unavailable"));
         sipService.showUiMessage(InAppNotifications.TYPE_INFO, bundle);
-    }
-
-    static public void showCallRecordExternalStorageProblem(SipService sipService) {
-        Bundle bundle = new Bundle();
-        bundle.putString("message", sipService.getI18n().getString("call_record_fail", "Call Recording Failed"));
-        bundle.putString("message2", sipService.getI18n().getString("no_space_or_perm_denied", "Insufficient space available or permission denied"));
-        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
-        sipService.showUiMessage(InAppNotifications.TYPE_WARN, bundle);
     }
 
     static public void showCallFailed(SipService sipService) {
@@ -66,6 +68,14 @@ public class UiMessagesCommon {
         sipService.showUiMessage(InAppNotifications.TYPE_CALL_FAILED, bundle);
     }
 
+    static public void showCallRecordExternalStorageProblem(SipService sipService) {
+        Bundle bundle = new Bundle();
+        bundle.putString("message", sipService.getI18n().getString("call_record_fail", "Call Recording Failed"));
+        bundle.putString("message2", sipService.getI18n().getString("no_space_or_perm_denied", "Insufficient space available or permission denied"));
+        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
+        sipService.showUiMessage(InAppNotifications.TYPE_WARN, bundle);
+    }
+
     static public void showConnectProgress(SipService sipService, int progress) {
         sipService.uiMessageDismissByType(InAppNotifications.TYPE_INFO_CONNECT_PROGRESS);
         Bundle bundle = new Bundle();
@@ -84,9 +94,42 @@ public class UiMessagesCommon {
         sipService.showUiMessage(InAppNotifications.TYPE_INFO_CONNECT_PROGRESS, bundle);
     }
 
+    static public void showDozeAmRelaxFailed(SipService sipService) {
+        Bundle bundle = new Bundle();
+        bundle.putString("message", sipService.getI18n().getString("uim_doze_am_relax_failed", "Failed to set doze timing"));
+        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
+        sipService.showUiMessage(InAppNotifications.TYPE_INFO, bundle);
+    }
+
+    static public void showDozeLightOnlyFailed(SipService sipService) {
+        Bundle bundle = new Bundle();
+        bundle.putString("message", sipService.getI18n().getString("uim_doze_light_only_failed", "Failed to set doze light only"));
+        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
+        sipService.showUiMessage(InAppNotifications.TYPE_INFO, bundle);
+    }
+
+    static public void showDozeAmRelaxReqPerm(SipService sipService) {
+        Bundle bundle = new Bundle();
+        bundle.putString("message", sipService.getI18n().getString("uim_doze_am_relax_failed", "Failed to reconfigure doze"));
+        bundle.putString("message2", sipService.getI18n().getString("special_perm_req", "Special permission required"));
+        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
+        bundle.putInt(InAppNotifications.KEY_ONCLICK_HINT, InAppNotifications.VALUE_ONCLICK_HINT_DOZE_AM_RELAX_HELP);
+        sipService.showUiMessage(InAppNotifications.TYPE_INFO, bundle);
+    }
+
+    static public void showDozeLightOnlyReqPerm(SipService sipService) {
+        Bundle bundle = new Bundle();
+        bundle.putString("message", sipService.getI18n().getString("uim_doze_am_relax_failed", "Failed to reconfigure doze"));
+        bundle.putString("message2", sipService.getI18n().getString("special_perm_req", "Special permission required"));
+        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
+        bundle.putInt(InAppNotifications.KEY_ONCLICK_HINT, InAppNotifications.VALUE_ONCLICK_HINT_DOZE_LIGHT_ONLY_HELP);
+        sipService.showUiMessage(InAppNotifications.TYPE_INFO, bundle);
+    }
+
     static public void showDozeDisableFailed(SipService sipService) {
         Bundle bundle = new Bundle();
         bundle.putString("message", sipService.getI18n().getString("doze_disable_failed", "Failed to disable doze"));
+        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
         bundle.putInt(InAppNotifications.KEY_ONCLICK_HINT, InAppNotifications.VALUE_ONCLICK_HINT_DOZE_DISABLE_HELP);
         sipService.showUiMessage(InAppNotifications.TYPE_INFO, bundle);
     }
@@ -94,9 +137,9 @@ public class UiMessagesCommon {
     static public void showDozeReqPerm(SipService sipService) {
         Bundle bundle = new Bundle();
         bundle.putString("message", sipService.getI18n().getString("doze_disable_failed", "Failed to disable doze"));
-        bundle.putString("message2", sipService.getI18n().getString("root_dump_perm_req", "ROOT or DUMP permission required"));
-
-        bundle.putInt(InAppNotifications.KEY_ONCLICK_HINT, InAppNotifications.VALUE_ONCLICK_HINT_DOZE_DISABLE_HELP);
+        bundle.putString("message2", sipService.getI18n().getString("root_dump_perm_req", "ROOT or SPECIAL permissions required"));
+        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
+        bundle.putInt(InAppNotifications.KEY_ONCLICK_HINT, InAppNotifications.VALUE_ONCLICK_HINT_DOZE_CONTROLLER_HELP);
         sipService.showUiMessage(InAppNotifications.TYPE_INFO, bundle);
     }
 
@@ -141,16 +184,6 @@ public class UiMessagesCommon {
         bundle.putString("message", sipService.getI18n().getString("no_network", "No Network"));
         bundle.putString("message2", sipService.getI18n().getString("check_connectivity", "Check connectivity"));
         sipService.showUiMessage(InAppNotifications.TYPE_WARN_NO_NETWORK, bundle);
-    }
-
-    static public void showBatterySaveModeEnabled(SipService sipService) {
-        sipService.uiMessageDismissByType(InAppNotifications.TYPE_INFO_BATTERY_SAVER_ENABLED);
-        Bundle bundle = new Bundle();
-        bundle.putString("message", sipService.getI18n().getString("uim_batterysave", "Missing calls?"));
-        bundle.putString("message2", sipService.getI18n().getString("uim_batterysave_2", "Battery saver mode may block incoming calls when battery is low."));
-        bundle.putInt(InAppNotifications.KEY_ONCLICK_HINT, InAppNotifications.VALUE_ONCLICK_HINT_GO_POWER_SAVE_MODE);
-        bundle.putBoolean(InAppNotifications.FLAG_STICKY, true);
-        sipService.showUiMessage(InAppNotifications.TYPE_INFO_BATTERY_SAVER_ENABLED, bundle);
     }
 
     static public void showProAd(SipService sipService) {

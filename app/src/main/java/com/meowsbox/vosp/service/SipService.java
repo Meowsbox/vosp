@@ -43,6 +43,7 @@ import android.widget.Toast;
 
 import com.getkeepsafe.relinker.ReLinker;
 import com.meowsbox.internal.siptest.PjSipTimerWrapper;
+import com.meowsbox.internal.siptest.PjsipAndroidJniAudio;
 import com.meowsbox.vosp.ContactProvider;
 import com.meowsbox.vosp.DialerApplication;
 import com.meowsbox.vosp.IRemoteSipServiceEvents;
@@ -108,10 +109,11 @@ public class SipService extends Service {
     private static final long PROMO_CALL_COUNT_THRESHOLD = 10; // minimum calls made before showing promo UI message
     private static final long RATEUS_INTERVAL = 3600 * 1000;
     private static final long RATEUS_PRE_DELAY = 30 * 1000;
+    private static final long TIMEOUT_WL_RESTART = 120000;
     public static volatile int serviceId; // instance identifier
     static volatile SipService instance = null;
     private static volatile Logger gLog = null;
-    private static ExecutorThreadFactory pjsipThreadFactory = null;
+    private static volatile ExecutorThreadFactory pjsipThreadFactory = null;
     int sampleRateOptimal;
     ConnectivityManager connectivityManager;
     WifiManager.WifiLock wifilocksipservice;
@@ -122,6 +124,7 @@ public class SipService extends Service {
     ScreenStateReceiver screenStateReceiver;
     Handler handler = null;
     volatile boolean isExitQueued = false;
+    String ipAddr;
     private UUID deviceUuid;
     private long tsPromoDismissed = 0; // ts when last promo ui message was shown
     private long tsRateusDismissed = 0; // ts when last rateus ui message was shown (shared between local and Google Play)
@@ -130,7 +133,6 @@ public class SipService extends Service {
      * Flag TRUE when any critical native library fails to load
      */
     private volatile boolean nativeLibLoadFailure = false;
-
     private StatsCollector mStat;
     private int audioRoute = 0;
     private SipEndpoint sipEndpoint;
@@ -141,7 +143,7 @@ public class SipService extends Service {
     private ConcurrentLinkedDeque<SipServiceEvents> eventSubs = new ConcurrentLinkedDeque<>();
     private ConcurrentLinkedDeque<IRemoteSipServiceEvents> eventSubsRemote = new ConcurrentLinkedDeque<>();
     private boolean isServiceStarted = false;
-    private ExecutorService pjsipExec = null;
+    private volatile ExecutorService pjsipExec = null;
     private AudioManager audioManager;
     private Vibrator vibrator;
     private SipCallLogController sipCallLogController = null;
@@ -151,6 +153,8 @@ public class SipService extends Service {
     private AlarmManager alarmManager;
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLockPartial; // reference counted
+    private PowerManager.WakeLock wakeLockPartialOnNetworkChange; // reference counted, time limited
+    private PowerManager.WakeLock wlStackRestart; // used only during stack restart
     private boolean isNetworkAvailable = false;
     private Integer networkType = null;
     private int retryCount = 0;
@@ -159,7 +163,8 @@ public class SipService extends Service {
     private volatile LocalStore localStore;
     private ScheduledRun scheduledRun;
     private i18nProvider i18n;
-    private DozeDisabler dozeDisabler = null;
+    private DozeController dozeController = null;
+    private volatile DozeAmRelax dozeAmRelax = null;
     private AudioAttributes vibeAudioAttrib;
     private Uri uriRingToneDefault = null;
     private Ringtone ringTone = null;
@@ -363,12 +368,42 @@ public class SipService extends Service {
         }
     }
 
+    /**
+     * Get the full path to the default external storage specific for this app.
+     *
+     * @return full path or NULL on error
+     */
+    public String getAppExtStoragePath() {
+        final String externalStorageState = Environment.getExternalStorageState();
+        switch (externalStorageState) {
+            case Environment.MEDIA_EJECTING:
+            case Environment.MEDIA_NOFS:
+            case Environment.MEDIA_MOUNTED_READ_ONLY:
+            case Environment.MEDIA_REMOVED:
+            case Environment.MEDIA_UNKNOWN:
+            case Environment.MEDIA_UNMOUNTABLE:
+            case Environment.MEDIA_UNMOUNTED:
+                if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Problem with External Storage: " + externalStorageState);
+                return null;
+        }
+        final File externalStorageDirectory = Environment.getExternalStorageDirectory();
+
+        final String storPath = externalStorageDirectory + "/" + PATH_APP_NAME;
+        File storageDirectory = new File(storPath);
+        if (storageDirectory.isDirectory()) return storPath;
+        storageDirectory.mkdirs();
+        if (storageDirectory.isDirectory()) return storPath;
+
+        if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Problem with External Storage Path: " + storPath);
+        return null;
+    }
+
     public int getAudioRoute() {
         return audioRoute;
     }
 
     void setAudioRoute(final int audioRoute) {
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, audioRoute);
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "setAudioRoute " + audioRoute);
         try {
             runOnServiceThread(new Runnable() {
                 @Override
@@ -413,6 +448,10 @@ public class SipService extends Service {
             }
         }
 
+    }
+
+    public ConnectivityManager getConnectivityManager() {
+        return connectivityManager;
     }
 
     public String getDeviceId() {
@@ -623,6 +662,8 @@ public class SipService extends Service {
                     vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
                     wakeLockPartial = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SipService");
                     wakeLockPartial.setReferenceCounted(true);
+                    wakeLockPartialOnNetworkChange = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SipService onNetworkChange");
+                    wakeLockPartialOnNetworkChange.setReferenceCounted(false);
 
                     generateServiceId();
 
@@ -690,6 +731,7 @@ public class SipService extends Service {
                     notificationController.cancelNotificationAll();
 
                     setupAndroidAudio();
+                    loadMediaInputPrefs();
 
                     sipCallLogController = new SipCallLogController(getInstance());
 
@@ -717,7 +759,8 @@ public class SipService extends Service {
                     wifilocksipservice = wifiManager.createWifiLock("wifilocksipservice");
                     updateWifiLockState();
 
-                    setupDozeDisablerAsync();
+                    setupDozeControllerAsync();
+                    setupDozeAmRelaxAsync();
 
                     if (timerPromo == null) timerPromo = new Timer();
                     timerPromo.scheduleAtFixedRate(new TimerTask() {
@@ -734,6 +777,10 @@ public class SipService extends Service {
                     showAlternateLauncherIcons(localStore.getBoolean(Prefs.KEY_SHOW_ALTERNATE_LAUNCHERS, false));
 
                     startForeground(SERVICE_FOREGROUND_ID, notificationController.getForegroundServiceNotification(null));
+
+                    message = Message.obtain();
+                    message.arg1 = SipServiceMessages.MSG_ACCOUNTS_REGISTER_ALL;
+                    queueCommand(message);
 
                     return START_STICKY;
                 }
@@ -836,39 +883,49 @@ public class SipService extends Service {
     /**
      * Called by platform on change of network availability. Platform time sensitive.
      */
-    public void onNetworkStateChanged() {
+    public void onNetworkStateChanged(Bundle intentExtras) {
         NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
         if (activeNetworkInfo != null) { // NULL = no connectivity available
             boolean connected = activeNetworkInfo.isConnected();
             int type = activeNetworkInfo.getType();
 
             if (DEBUG) {
-                gLog.l(TAG, Logger.lvVerbose, "connected " + connected);
-                gLog.l(TAG, Logger.lvVerbose, "isConnectedOrConnecting " + activeNetworkInfo.isConnectedOrConnecting());
-                gLog.l(TAG, Logger.lvVerbose, "isFailover " + activeNetworkInfo.isFailover());
-                gLog.l(TAG, Logger.lvVerbose, "isAvailable " + activeNetworkInfo.isAvailable());
-                gLog.l(TAG, Logger.lvVerbose, "isRoaming " + activeNetworkInfo.isRoaming());
-                gLog.l(TAG, Logger.lvVerbose, "type " + (type == 0 ? "Mobile" : "Wifi"));
+                gLog.l(TAG, Logger.lvVerbose, "onNetworkStateChanged connected " + connected);
+                gLog.l(TAG, Logger.lvVerbose, "onNetworkStateChanged isConnectedOrConnecting " + activeNetworkInfo.isConnectedOrConnecting());
+                gLog.l(TAG, Logger.lvVerbose, "onNetworkStateChanged isFailover " + activeNetworkInfo.isFailover());
+                gLog.l(TAG, Logger.lvVerbose, "onNetworkStateChanged isAvailable " + activeNetworkInfo.isAvailable());
+                gLog.l(TAG, Logger.lvVerbose, "onNetworkStateChanged isRoaming " + activeNetworkInfo.isRoaming());
+                gLog.l(TAG, Logger.lvVerbose, "onNetworkStateChanged type " + (type == 0 ? "Mobile" : "Wifi"));
             }
 
-            if (networkType == null) networkType = type;
+            if (networkType == null) networkType = type; // prime network type value
+
             if (networkType != type && connected) { // network type changed
-                wakelockPartialAcquire("onNetworkStateChanged"); // will be released by MSG_WAKELOCK_RELEASE handler
+                wlOnNetworkChange(true, "onNetworkStateChanged diff", null); // will be released by MSG_WAKELOCK_RELEASE handler
                 networkType = type;
                 isNetworkAvailable = connected;
-                Message message = new Message();
+
+                Message message = Message.obtain();
                 message.arg1 = SipServiceMessages.MSG_CONNECTIVITY_CHANGED;
                 message.arg2 = 0; // enable wakelock release in handler
+                final Bundle bundle = new Bundle();
+                bundle.putString("wlsource", "onNetworkStateChanged diff");
+                bundle.putBoolean("netdiff", true); // notify service network types and probably ip have changed
+                message.setData(bundle);
                 queueCommand(message);
 
             } else if (networkType == type && connected) { // same network type but updated?
-                wakelockPartialAcquire("onNetworkStateChanged"); // will be releaseed by MSG_CONNECTIVITY_CHANGED handler
+                wlOnNetworkChange(true, "onNetworkStateChanged same", null); // will be releaseed by MSG_CONNECTIVITY_CHANGED handler
                 networkType = type;
                 isNetworkAvailable = connected;
+
                 // send command, handler will release wakelock
-                Message message = new Message();
+                Message message = Message.obtain();
                 message.arg1 = SipServiceMessages.MSG_CONNECTIVITY_CHANGED;
                 message.arg2 = 0; // enable wakelock release in handler
+                final Bundle bundle = new Bundle();
+                bundle.putString("wlsource", "onNetworkStateChanged same");
+                message.setData(bundle);
                 queueCommand(message);
             } else {
                 // we don't care about disconnection events at all
@@ -876,16 +933,23 @@ public class SipService extends Service {
             networkType = type;
             isNetworkAvailable = connected;
         } else {
-            if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "No Connectivity");
-            isNetworkAvailable = false; // no networks available at all
-            wakelockPartialAcquire("onNetworkStateChanged"); // will be releaseed by MSG_CONNECTIVITY_CHANGED handler
-            Message message = new Message();
-            message.arg1 = SipServiceMessages.MSG_CONNECTIVITY_CHANGED;
-            message.arg2 = 0; // enable wakelock release in handler
-            queueCommand(message);
+            if (intentExtras != null)
+                if (intentExtras.getBoolean("EXTRA_NO_CONNECTIVITY ", false)) {
+                    if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "No Connectivity");
+                    isNetworkAvailable = false; // no networks available at all
+                    wlOnNetworkChange(true, "onNetworkStateChanged none", null); // will be releaseed by MSG_CONNECTIVITY_CHANGED handler
+
+                    Message message = Message.obtain();
+                    message.arg1 = SipServiceMessages.MSG_CONNECTIVITY_CHANGED;
+                    message.arg2 = 0; // enable wakelock release in handler
+                    final Bundle bundle = new Bundle();
+                    bundle.putString("wlsource", "onNetworkStateChanged none");
+                    message.setData(bundle);
+                    queueCommand(message);
+                }
         }
 
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, isNetworkAvailable);
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "onNetworkStateChanged isNetworkAvailable " + isNetworkAvailable);
     }
 
     public void onPowerSaveModeChanged() {
@@ -899,10 +963,10 @@ public class SipService extends Service {
      * @param screenOn
      */
     public void onScreenStateChanged(boolean screenOn) {
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, screenOn);
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "onScreenStateChanged " + screenOn);
 
         // send command
-        Message message = new Message();
+        Message message = Message.obtain();
         message.arg1 = SipServiceMessages.MSG_SCREEN_STATE_CHANGED;
         message.arg2 = screenOn ? 1 : 0;
         queueCommand(message);
@@ -984,36 +1048,87 @@ public class SipService extends Service {
         }
     }
 
-    public void runOnServiceThread(Runnable action) throws ExecutionException, InterruptedException {
+    /**
+     * Submit a Runnable to service thread. Runnable is wrapped in a try-catch prior to passing to executor.
+     *
+     * @param action
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
+    public void runOnServiceThread(final Runnable action) throws ExecutionException, InterruptedException {
         if (pjsipExec == null || pjsipExec.isShutdown()) { // sanity check
             if (gLog != null) gLog.l(TAG, Logger.lvError, "pjsipExec not ready, runnable skipped!");
             else Log.e("SipService", "pjsipExec not ready, runnable skipped!");
         }
-        if (Thread.currentThread() == pjsipThreadFactory.pjsipthread) { // check if already on same thread
-            action.run();
-        } else pjsipExec.submit(action);
+//        if (Thread.currentThread() == pjsipThreadFactory.pjsipthread) { // check if already on same thread
+//            action.run();
+//        } else pjsipExec.submit(action);
+        final Runnable f = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    action.run();
+                } catch (Exception e) {
+                    gLog.l(TAG, Logger.lvError, e);
+                }
+            }
+        };
+        pjsipExec.submit(f);
     }
 
-    public void wakelockPartialAcquire(String ident) {
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, ident);
-        wakeLockPartial.acquire();
+    /**
+     * Submit a Runnable to service thread. Any uncaught exception thrown may be silently discarded.
+     *
+     * @param action
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
+    public void runOnServiceThreadUnCaught(final Runnable action) throws ExecutionException, InterruptedException {
+        if (pjsipExec == null || pjsipExec.isShutdown()) { // sanity check
+            if (gLog != null) gLog.l(TAG, Logger.lvError, "pjsipExec not ready, runnable skipped!");
+            else Log.e("SipService", "pjsipExec not ready, runnable skipped!");
+        }
+        pjsipExec.submit(action);
     }
 
-    public void wakelockPartialRelease(String ident) {
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, ident);
-        if (wakeLockPartial.isHeld()) wakeLockPartial.release();
-        if (wakeLockPartial.isHeld()) if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "other wakelocks still acquired...");
+    /**
+     * Partial WakeLock for network changes. Not reference counted.
+     *
+     * @param acquire
+     * @param ident
+     * @param timeOut NULL = 30000ms
+     */
+    public void wlOnNetworkChange(boolean acquire, String ident, Integer timeOut) {
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "wlOnNetworkChange " + acquire + " " + ident);
+        if (acquire) wakeLockPartialOnNetworkChange.acquire(timeOut == null ? 30000 : timeOut);
+        else if (wakeLockPartialOnNetworkChange.isHeld()) wakeLockPartialOnNetworkChange.release();
+
     }
 
     /**
      * Release all acquired partial wakelocks, regardless of source.
      */
-    public void wakelockPartialReleaseAll() {
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "wakelockPartialReleaseAll");
+    public void wlReleaseAll() {
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "wlSipService wlReleaseAll");
         while (wakeLockPartial.isHeld()) {
             wakeLockPartial.release();
         }
     }
+
+    public void wlSipService(boolean acquire, String ident, Integer timeOut) {
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "wlSipService " + acquire + " " + ident);
+        if (acquire) {
+            if (timeOut == null) wakeLockPartial.acquire();
+            else wakeLockPartial.acquire(timeOut);
+        } else {
+            if (wakeLockPartial.isHeld()) wakeLockPartial.release();
+            if (DEBUG && wakeLockPartial.isHeld()) {
+                gLog.l(TAG, Logger.lvVerbose, "wlSipService other wakelocks still acquired...");
+                gLog.l(TAG, Logger.lvVerbose, wakeLockPartial.toString());
+            }
+        }
+    }
+
 
     /**
      * Called from UI by remote thread to inform service that account details have changed and to restart the stack.
@@ -1023,12 +1138,14 @@ public class SipService extends Service {
             runOnServiceThread(new Runnable() {
                 @Override
                 public void run() {
+                    dozeController.setMode(localStore.getInt(Prefs.KEY_DOZE_CONTROLER_MODE, DozeController.MODE_DEFAULT));
                     uiMessageDismissByType(InAppNotifications.TYPE_SETTINGS);
                     showAlternateLauncherIcons(localStore.getBoolean(Prefs.KEY_SHOW_ALTERNATE_LAUNCHERS, false));
                     queueClearAll();
                     stackRestart();
                     if (isNetworkAvailable())
                         accountsRegisterAll(true);
+                    else gLog.l(TAG, Logger.lvVerbose, "accountsRegister skipped, isNetworkAvailable false");
                     pushEventOnSettingsChanged();
                 }
             });
@@ -1045,8 +1162,12 @@ public class SipService extends Service {
      * @param enable
      */
     void accountsRegisterAll(final boolean enable) {
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "accountsRegisterAll");
         synchronized (sipAccounts) {
-            if (sipAccounts.isEmpty()) return;
+            if (sipAccounts.isEmpty()) {
+                if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "accountsRegisterAll sipAccounts.isEmpty");
+                return;
+            }
         }
         synchronized (sipAccounts) {
             for (SipAccount sipAccount : sipAccounts) {
@@ -1316,13 +1437,6 @@ public class SipService extends Service {
         return callResult;
     }
 
-//    void debugConnect() {
-//        if (DEBUG) gLog.l(TAG ,Logger.lvVerbose);
-//        SipAccount sipAccount = new SipAccount(getInstance(), null);
-//        sipAccounts.add(sipAccount);
-//        sipAccount.init();
-//    }
-
     boolean callRecord(final int callId) {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "callRecord " + callId);
         boolean result;
@@ -1346,6 +1460,13 @@ public class SipService extends Service {
         pushEventOnCallRecordStateChanged(callId);
         return result;
     }
+
+//    void debugConnect() {
+//        if (DEBUG) gLog.l(TAG ,Logger.lvVerbose);
+//        SipAccount sipAccount = new SipAccount(getInstance(), null);
+//        sipAccounts.add(sipAccount);
+//        sipAccount.init();
+//    }
 
     boolean callRecordStop(final int callId) {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "callRecordStop " + callId);
@@ -1377,36 +1498,6 @@ public class SipService extends Service {
 
     boolean debugIsThreadRegistered() {
         return sipEndpoint.isPjsipThread();
-    }
-
-    /**
-     * Get the full path to the default external storage specific for this app.
-     *
-     * @return full path or NULL on error
-     */
-    public String getAppExtStoragePath() {
-        final String externalStorageState = Environment.getExternalStorageState();
-        switch (externalStorageState) {
-            case Environment.MEDIA_EJECTING:
-            case Environment.MEDIA_NOFS:
-            case Environment.MEDIA_MOUNTED_READ_ONLY:
-            case Environment.MEDIA_REMOVED:
-            case Environment.MEDIA_UNKNOWN:
-            case Environment.MEDIA_UNMOUNTABLE:
-            case Environment.MEDIA_UNMOUNTED:
-                if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Problem with External Storage: " + externalStorageState);
-                return null;
-        }
-        final File externalStorageDirectory = Environment.getExternalStorageDirectory();
-
-        final String storPath = externalStorageDirectory + "/" + PATH_APP_NAME;
-        File storageDirectory = new File(storPath);
-        if (storageDirectory.isDirectory()) return storPath;
-        storageDirectory.mkdirs();
-        if (storageDirectory.isDirectory()) return storPath;
-
-        if (DEBUG) gLog.l(TAG, Logger.lvDebug, "Problem with External Storage Path: " + storPath);
-        return null;
     }
 
     LicensingManager getLicensing() {
@@ -1614,9 +1705,9 @@ public class SipService extends Service {
                 UiMessagesCommon.showSettingsProblem(this);
                 return;
         }
-        try {
+        if (DEBUG) try {
             AccountInfo info = sipAccount.getInfo();
-            gLog.l(TAG, Logger.lvDebug, info.getRegLastErr());
+            gLog.l(TAG, Logger.lvDebug, "getRegLastErr " + info.getRegLastErr());
         } catch (Exception e) {
             if (DEBUG) e.printStackTrace();
         }
@@ -1825,9 +1916,25 @@ public class SipService extends Service {
         }
         isExitQueued = true;
         queueClearAll();
-        Message message = new Message();
+        Message message = Message.obtain();
         message.arg1 = SipServiceMessages.MSG_SERVICE_STOP;
         queueCommand(message);
+    }
+
+    void refreshDozeController() {
+        if (dozeController == null) return;
+        try {
+            runOnServiceThread(new Runnable() {
+                @SuppressLint("NewApi")
+                @Override
+                public void run() {
+                    dozeController.onRefreshState();
+                }
+            });
+        } catch (ExecutionException e) {
+        } catch (InterruptedException e) {
+            gLog.l(TAG, Logger.lvError, e);
+        }
     }
 
     void refreshRegistrationOnDoze() {
@@ -1886,16 +1993,22 @@ public class SipService extends Service {
             hmUiMessages.put(i, bundle); // retain message
         }
         synchronized (eventSubsRemote) {
+            LinkedList<IRemoteSipServiceEvents> deadRemoteSubs = null;
             for (IRemoteSipServiceEvents r : eventSubsRemote) {
                 try {
                     r.showMessage(iAnType, bundle);
                 } catch (RemoteException e) {
+                    if (deadRemoteSubs == null) deadRemoteSubs = new LinkedList<>();
+                    deadRemoteSubs.add(r);
                     if (DEBUG) {
                         gLog.l(TAG, Logger.lvVerbose, e);
                         e.printStackTrace();
                     }
                     return -1;
                 }
+            }
+            if (deadRemoteSubs != null) for (IRemoteSipServiceEvents deadRemoteSub : deadRemoteSubs) {
+                eventSubsRemote.remove(deadRemoteSub);
             }
         }
         return i;
@@ -1906,8 +2019,15 @@ public class SipService extends Service {
      */
     void stackRestart() {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "stackRestart");
+        if (wlStackRestart == null)
+            wlStackRestart = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "StackRestart");
+        if (wlStackRestart.isHeld()) wlStackRestart.release(); // release any previously held wakelocks
+        wlStackRestart.acquire(TIMEOUT_WL_RESTART); // acquire local wl during stack restarting process, safety timeout
+
         stackStop();
+        wlReleaseAll(); // clear any orphaned SipService wl
         stackStart();
+        if (wlStackRestart.isHeld()) wlStackRestart.release(); // release any previously held wakelocks
     }
 
     /**
@@ -1920,8 +2040,10 @@ public class SipService extends Service {
         sipEndpoint.init();
 //        debugConnect();
         populateAccounts();
+        loadMediaInputPrefs();
         pushEventOnStackStateChanged(STACK_STATE_STARTED);
-        setupDozeDisablerAsync();
+        setupDozeControllerAsync();
+        setupDozeAmRelaxAsync();
     }
 
     /**
@@ -1948,10 +2070,15 @@ public class SipService extends Service {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "canceling vibrator if active");
         if (vibrator != null) vibrator.cancel();
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "shutting down dozedisabler");
-        if (dozeDisabler != null) {
-            dozeDisabler.disable();
-            dozeDisabler.destroy();
-            dozeDisabler = null;
+        if (dozeController != null) {
+            dozeController.disable();
+            dozeController.destroy();
+            dozeController = null;
+        }
+        if (dozeAmRelax != null) {
+            dozeAmRelax.disable();
+            dozeAmRelax.destroy();
+            dozeAmRelax = null;
         }
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "canceling all notifications");
         notificationController.cancelNotificationAll();
@@ -2016,34 +2143,55 @@ public class SipService extends Service {
             hmUiMessages.remove(smid);
         }
         synchronized (eventSubsRemote) {
+            LinkedList<IRemoteSipServiceEvents> deadRemoteSubs = null;
             for (IRemoteSipServiceEvents r : eventSubsRemote) {
                 try {
                     r.clearMessageBySmid(smid);
                 } catch (RemoteException e) {
+                    if (deadRemoteSubs == null) deadRemoteSubs = new LinkedList<>();
+                    deadRemoteSubs.add(r);
                     if (DEBUG) {
                         gLog.l(TAG, Logger.lvVerbose, e);
                         e.printStackTrace();
                     }
                 }
+            }
+            if (deadRemoteSubs != null) for (IRemoteSipServiceEvents deadRemoteSub : deadRemoteSubs) {
+                eventSubsRemote.remove(deadRemoteSub);
             }
         }
     }
 
     void uiMessageDismissByType(int iAnType) {
         synchronized (eventSubsRemote) {
+            LinkedList<IRemoteSipServiceEvents> deadRemoteSubs = null;
             for (IRemoteSipServiceEvents r : eventSubsRemote) {
                 try {
                     r.clearMessageByType(iAnType);
                 } catch (RemoteException e) {
+                    if (deadRemoteSubs == null) deadRemoteSubs = new LinkedList<>();
+                    deadRemoteSubs.add(r);
                     if (DEBUG) {
                         gLog.l(TAG, Logger.lvVerbose, e);
                         e.printStackTrace();
                     }
                 }
             }
+            if (deadRemoteSubs != null) for (IRemoteSipServiceEvents deadRemoteSub : deadRemoteSubs) {
+                eventSubsRemote.remove(deadRemoteSub);
+            }
         }
+
         for (Map.Entry<Integer, Bundle> b : hmUiMessages.entrySet()) {
             if (b.getValue().getInt(InAppNotifications.IAN_TYPE) == iAnType) hmUiMessages.remove(b.getKey());
+        }
+    }
+
+    void updateAccountUdpKeepAliveFromEndpointAll() {
+        synchronized (sipAccounts) {
+            for (SipAccount sipAccount : sipAccounts) {
+                sipAccount.updateUdpKeepAliveFromEndpoint();
+            }
         }
     }
 
@@ -2085,6 +2233,21 @@ public class SipService extends Service {
         if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "serviceId " + serviceId);
     }
 
+    private Network getNetwork(int networkType) {
+        for (Network network : connectivityManager.getAllNetworks()) {
+            if (connectivityManager.getNetworkInfo(network).getType() == networkType) return network;
+        }
+        return null;
+    }
+
+    private void loadMediaInputPrefs() {
+        // Change the current input audio source if defined in pref
+        final int micSourcePref = localStore.getInt(Prefs.KEY_MEDIA_AUDIO_MIC_SOURCE, -1);
+        if (micSourcePref != -1) {
+            PjsipAndroidJniAudio.micSource = micSourcePref;
+        }
+    }
+
     private void setupAndroidAudio() {
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
@@ -2099,27 +2262,45 @@ public class SipService extends Service {
         audioManager.registerMediaButtonEventReceiver(new ComponentName(getPackageName(), MediaSessionHandler.class.getName()));
     }
 
-    private void setupDozeDisablerAsync() {
-        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "setupDozeDisablerAsync");
-        if (localStore.getBoolean(Prefs.KEY_DOZE_DISABLE, false) || localStore.getBoolean(Prefs.KEY_DOZE_DISABLE_SU, false))
+    private void setupDozeAmRelaxAsync() {
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "setupDozeAmRelaxAsync");
+        if (localStore.getBoolean(Prefs.KEY_DOZE_AM_RELAX, false))
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    dozeDisabler = new DozeDisabler(SipService.getInstance());
-                    if (!(dozeDisabler.isRootAvaialble() || dozeDisabler.hasPermissionDump())) {
-                        UiMessagesCommon.showDozeReqPerm(getInstance());
+                    dozeAmRelax = new DozeAmRelax(SipService.getInstance());
+                    if (!dozeAmRelax.hasPermissionWriteSecure()) {
+                        gLog.l(TAG, Logger.lvDebug, "DozeAmRelax Not granted WRITE_SECURE_SETTINGS");
+                        UiMessagesCommon.showDozeAmRelaxReqPerm(getInstance());
                         return;
                     }
-                    boolean result = dozeDisabler.enable(localStore.getBoolean(Prefs.KEY_DOZE_DISABLE_SU, false));
+                    boolean result = dozeAmRelax.enable();
                     if (!result) {
-                        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "Doze disable: failed");
-                        UiMessagesCommon.showDozeDisableFailed(getInstance());
+                        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "DozeAmRelax : failed");
+                        UiMessagesCommon.showDozeAmRelaxFailed(getInstance());
                     }
                 }
             }).start();
     }
 
-    private void setupGoogleBilling() {
+    private void setupDozeControllerAsync() {
+        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "setupDozeControllerAsync");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                dozeController = new DozeController(SipService.getInstance());
+                final int dcMode = localStore.getInt(Prefs.KEY_DOZE_CONTROLER_MODE, DozeController.MODE_DEFAULT);
+                dozeController.setMode(dcMode);
+                if (dcMode != DozeController.MODE_DEFAULT ) {
+                    if (!dozeController.hasRequiredPermissions()) {
+                        if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "dozeController !hasRequiredPermissions Mode " + dcMode);
+                        UiMessagesCommon.showDozeReqPerm(getInstance());
+                        return;
+                    }
+                    dozeController.enable();
+                }
+            }
+        }).start();
     }
 
     /**
@@ -2442,11 +2623,17 @@ public class SipService extends Service {
      * Simple thread naming and reference keeping.
      */
     class ExecutorThreadFactory implements ThreadFactory {
-        Thread pjsipthread;
+        volatile Thread pjsipthread;
 
         @Override
         public Thread newThread(Runnable r) {
             if (pjsipthread == null || !pjsipthread.isAlive()) pjsipthread = new Thread(r, "pjsipThread");
+            pjsipthread.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() { // doesn't work for scheduled threads but ...
+                @Override
+                public void uncaughtException(Thread t, Throwable e) {
+                    gLog.l(TAG + " pjsipthread", Logger.lvError, e);
+                }
+            });
             return pjsipthread;
         }
     }

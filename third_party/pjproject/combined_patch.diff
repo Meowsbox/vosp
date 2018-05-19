@@ -1,5 +1,43 @@
-From e63cc338cdf810a533d490e35b0e4d5a12010fac Mon Sep 17 00:00:00 2001
+From ca04129509a3391239f51053619431f09c42e192 Mon Sep 17 00:00:00 2001
 From: Darryl Hon <23092482+DarrylHon@users.noreply.github.com>
+Date: Thu, 19 Apr 2018 13:06:49 -0700
+Subject: [PATCH] add PJMedia mic_source override
+
+---
+ pjmedia/src/pjmedia-audiodev/android_jni_dev.c | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/pjmedia/src/pjmedia-audiodev/android_jni_dev.c b/pjmedia/src/pjmedia-audiodev/android_jni_dev.c
+index 4c63c0a..03967e9 100644
+--- a/pjmedia/src/pjmedia-audiodev/android_jni_dev.c
++++ b/pjmedia/src/pjmedia-audiodev/android_jni_dev.c
+@@ -668,11 +668,16 @@ static pj_status_t android_create_stream(pjmedia_aud_dev_factory *f,
+         jobject record_obj;
+         int mic_source = 0; /* DEFAULT: default audio source */
+ 
+-	if ((param->flags & PJMEDIA_AUD_DEV_CAP_INPUT_SOURCE) &&
+-	    (param->input_route & PJMEDIA_AUD_DEV_ROUTE_CUSTOM))
+-	{
+-    	    mic_source = param->input_route & ~PJMEDIA_AUD_DEV_ROUTE_CUSTOM;
+-    	}
++//	if ((param->flags & PJMEDIA_AUD_DEV_CAP_INPUT_SOURCE) &&
++//	    (param->input_route & PJMEDIA_AUD_DEV_ROUTE_CUSTOM))
++//	{
++//    	    mic_source = param->input_route & ~PJMEDIA_AUD_DEV_ROUTE_CUSTOM;
++//    	}
++
++        /* get mic source from java class */
++	jclass cls = (*jni_env)->FindClass(jni_env,"com/meowsbox/internal/siptest/PjsipAndroidJniAudio");
++	jfieldID fid = (*jni_env)->GetStaticFieldID(jni_env,cls, "micSource", "I");
++	mic_source = (*jni_env)->GetStaticIntField(jni_env, cls, fid);
+ 
+         /* Get pointer to the constructor */
+         constructor_method = (*jni_env)->GetMethodID(jni_env,
+-- 
+2.15.1.windows.2
+
+From e63cc338cdf810a533d490e35b0e4d5a12010fac Mon Sep 17 00:00:00 2001
+From: Darryl Hon <dhon@meowsbox.com>
 Date: Fri, 8 Sep 2017 17:40:23 -0700
 Subject: [PATCH] convert local timer to custom java scheduling api add
  configurable tcpKaInterval add native thread detachment on terminate bugfix
@@ -1364,5 +1402,50 @@ index 690ce02..35178d2 100644
  {
      pjsua_config ua_cfg;
 -- 
-2.9.0.windows.1
+2.15.1.windows.2
+
+From 85ba8bf926fdb20fff403bc1e5a3653ea4297855 Mon Sep 17 00:00:00 2001
+From: Darryl Hon <dhon@meowsbox.com>
+Date: Fri, 8 Sep 2017 12:18:40 -0700
+Subject: [PATCH] BUGFIX: localref leak Changeset 5563
+
+---
+ pjlib/src/pj/guid_android.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/pjlib/src/pj/guid_android.c b/pjlib/src/pj/guid_android.c
+index 7d2b0db..1b9b291 100644
+--- a/pjlib/src/pj/guid_android.c
++++ b/pjlib/src/pj/guid_android.c
+@@ -69,8 +69,10 @@ PJ_DEF(pj_str_t*) pj_generate_unique_string(pj_str_t *str)
+     if (!jni_env)
+         goto on_error;
+ 
+-    uuid_class = (jclass)(*jni_env)->NewGlobalRef(jni_env,
+-                 (*jni_env)->FindClass(jni_env, "java/util/UUID"));
++//    uuid_class = (jclass)(*jni_env)->NewGlobalRef(jni_env,
++//                 (*jni_env)->FindClass(jni_env, "java/util/UUID"));
++    //BUGFIX: global ref leak Changeset 5563
++    uuid_class = (*jni_env)->FindClass(jni_env, "java/util/UUID");
+     if (uuid_class == 0)
+         goto on_error;
+ 
+@@ -106,6 +108,10 @@ PJ_DEF(pj_str_t*) pj_generate_unique_string(pj_str_t *str)
+     pj_strncpy(str, &native_str, PJ_GUID_STRING_LENGTH);
+ 
+     (*jni_env)->ReleaseStringUTFChars(jni_env, uuid_string, native_string);
++    //BUGFIX: localref leak Changeset 5563
++    (*jni_env)->DeleteLocalRef(jni_env, javaUuid);
++    (*jni_env)->DeleteLocalRef(jni_env, uuid_class);
++    (*jni_env)->DeleteLocalRef(jni_env, uuid_string);
+     detach_jvm(attached);
+ 
+     return str;
+@@ -115,3 +121,4 @@ on_error:
+     detach_jvm(attached);
+     return NULL;
+ }
++
+-- 
+2.15.1.windows.2
 

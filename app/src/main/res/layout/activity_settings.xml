@@ -67,6 +67,13 @@
             <include layout="@layout/compf_hbar_full"/>
 
             <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilSwUiNotifHide"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar_full"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
                 android:id="@+id/ilSwCallRecordAuto"
                 android:layout_width="match_parent"
                 android:layout_height="60dp"/>
@@ -193,7 +200,14 @@
             <include layout="@layout/compf_hbar"/>
 
             <com.meowsbox.vosp.widget.CompRowSw
-                android:id="@+id/ilDozeDisableRoot"
+                android:id="@+id/ilDozeController"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowSw
+                android:id="@+id/ilDozeAmRelax"
                 android:layout_width="match_parent"
                 android:layout_height="60dp"/>
 
@@ -238,6 +252,14 @@
                 android:id="@+id/ilMediaQuality"
                 android:layout_width="match_parent"
                 android:layout_height="60dp"/>
+
+            <include layout="@layout/compf_hbar"/>
+
+            <com.meowsbox.vosp.widget.CompRowEdit
+                android:id="@+id/ilMediaAudioMicSource"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
         </LinearLayout>
     </ScrollView>
 

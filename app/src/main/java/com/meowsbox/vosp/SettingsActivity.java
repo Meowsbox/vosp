@@ -10,10 +10,12 @@ package com.meowsbox.vosp;
 
 import android.app.ActionBar;
 import android.app.Activity;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,14 +23,20 @@ import android.os.RemoteException;
 import android.support.annotation.ColorInt;
 import android.support.v7.app.AlertDialog;
 import android.text.InputType;
+import android.util.TypedValue;
 import android.view.ContextThemeWrapper;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 
+import com.meowsbox.internal.siptest.PjsipAndroidJniAudio;
 import com.meowsbox.vosp.common.Logger;
+import com.meowsbox.vosp.service.DozeController;
 import com.meowsbox.vosp.service.Prefs;
 import com.meowsbox.vosp.service.SipEndpoint;
 import com.meowsbox.vosp.service.licensing.LicensingManager;
@@ -68,14 +76,16 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
     private CompRowEdit vStunServer;
     private CompRowSw vTcp;
     private CompRowSw vOnBoot;
-    private CompRowSw vDozeWorkAround, vDozeDisableRoot;
+    private CompRowSw vDozeWorkAround, vDozeController, vDozeAmRelax;
     private CompRowSw vWifiLock;
     private CompRowSw vVibe;
     private CompRowSw vAltLaunchers;
     private CompRowSw vUiColorNotifDark;
+    private CompRowSw vUiNotifHide;
     private CompRowEdit vRegExpire;
     private CompRowEdit vKaTcpMobile;
     private CompRowEdit vKaTcpWifi;
+    private CompRowEdit vMediaAudioMicSource;
     private CompRowEditIbIntRange vMediaAudioPreAmpRx, vMediaAudioPreAmpTx, vMediaQuality;
     private CompRowColor vUiColorPrimary;
     private IRemoteSipService sipService = null;
@@ -85,6 +95,7 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
     private View.OnClickListener onClickListenerPremium;
     private boolean hasMadeChanges = false;
     private EventHandler sipServiceEventHandler = new EventHandler();
+    private int dozeControllerMode = DozeController.MODE_DEFAULT;
 
     @Override
     public void onChanged() {
@@ -571,20 +582,126 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
                     }
                 });
 
-        vDozeDisableRoot = (CompRowSw) findViewById(R.id.ilDozeDisableRoot);
-        vDozeDisableRoot.setName(getString("doze_disable_with_root", "Doze Disable (Root)"));
-        vDozeDisableRoot.setValue(sipService.rsGetBoolean(Prefs.KEY_DOZE_DISABLE_SU, false))
-                .setChangeListener(this);
-        vDozeDisableRoot.setIsPremium(true).setRowEnabled(isPrem);
-        if (!isPrem) vDozeDisableRoot.setOnClickListener(onClickListenerPremium);
-        if (Build.VERSION.SDK_INT < 23) vDozeDisableRoot.setVisibility(View.GONE);
-        vDozeDisableRoot.setHelpDrawable(dHelp)
+        vDozeController = (CompRowSw) findViewById(R.id.ilDozeController);
+        vDozeController.setName(getString("doze_controller", "Doze Controller"));
+        dozeControllerMode = sipService.rsGetInt(Prefs.KEY_DOZE_CONTROLER_MODE, DozeController.MODE_DEFAULT);
+        vDozeController.setValue(dozeControllerMode!= DozeController.MODE_DEFAULT)
+                .setChangeListener(new IcompRowChangeListener() {
+                    @Override
+                    public void onChanged() {
+                        if (vDozeController.getValue()) {
+                            AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
+                            LayoutInflater li = (LayoutInflater) contextWrapper.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+                            final View view = li.inflate(R.layout.dialog_fragment_doze_mode, null);
+                            final RadioButton rb1 = view.findViewById(R.id.rb1);
+                            final RadioButton rb2 = view.findViewById(R.id.rb2);
+                            final RadioButton rb3 = view.findViewById(R.id.rb3);
+                            final RadioButton rb4 = view.findViewById(R.id.rb4);
+                            final RadioGroup rg1 = view.findViewById(R.id.rg1);
+
+                            try {
+                                rb1.setText(sipService.getLocalString("default", "Default"));
+                                rb2.setText(sipService.getLocalString("light_doze_only", "Light Doze Only"));
+                                rb3.setText(sipService.getLocalString("deep_doze_only", "Deep Doze Only"));
+                                rb4.setText(sipService.getLocalString("disable_doze", "Disable Doze"));
+                                switch (dozeControllerMode) {
+                                    case DozeController.MODE_LIGHT_ONLY:
+                                        rb2.setChecked(true);
+                                        break;
+                                    case DozeController.MODE_DEEP_ONLY:
+                                        rb3.setChecked(true);
+                                        break;
+                                    case DozeController.MODE_ALL:
+                                        rb4.setChecked(true);
+                                        break;
+                                    case DozeController.MODE_DEFAULT:
+                                    default:
+                                        rb1.setChecked(true);
+                                }
+                            } catch (RemoteException e) {
+                                if (DEBUG) e.printStackTrace();
+                            }
+                            builder.setView(view)
+                                    .setCancelable(true)
+                                    .setPositiveButton(getString("ok", "Ok"), new DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            if (rb1.isChecked()) {
+                                                dozeControllerMode = DozeController.MODE_DEFAULT;
+                                                vDozeController.setValue(false);
+                                                if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "MODE_DEFAULT");
+                                            }
+                                            if (rb2.isChecked()) {
+                                                dozeControllerMode = DozeController.MODE_LIGHT_ONLY;
+                                                if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "MODE_LIGHT_ONLY");
+                                            }
+                                            if (rb3.isChecked()) {
+                                                dozeControllerMode = DozeController.MODE_DEEP_ONLY;
+                                                if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "MODE_DEEP_ONLY");
+                                            }
+                                            if (rb4.isChecked()) {
+                                                dozeControllerMode = DozeController.MODE_ALL;
+                                                if (DEBUG) gLog.l(TAG, Logger.lvVerbose, "MODE_ALL");
+                                            }
+                                            dialog.dismiss();
+                                        }
+                                    });
+                            AlertDialog dialog = builder.create();
+                            dialog.show();
+                            final int w = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 200, getResources().getDisplayMetrics());
+                            dialog.getWindow().setLayout(w, dialog.getWindow().getAttributes().height);
+                        }
+                        dozeControllerMode = DozeController.MODE_DEFAULT;
+                    }
+                });
+        vDozeController.setIsPremium(true).setRowEnabled(isPrem);
+        if (!isPrem) vDozeController.setOnClickListener(onClickListenerPremium);
+        if (Build.VERSION.SDK_INT < 23) vDozeController.setVisibility(View.GONE);
+        vDozeController.setHelpDrawable(dHelp)
                 .setHelpVisibility(View.VISIBLE)
                 .setHelpOnClick(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
                         try {
-                            final String url_help_doze_disable = sipService.getLocalString("url_help_doze_disable", "file:///android_asset/help_doze_disable-en/index.html");
+                            final String url_help_doze_disable = sipService.getLocalString("url_help_doze_controller", "file:///android_asset/help_doze_controller-en/index.html");
+                            AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
+                            WebView wv = new WebView(v.getContext());
+                            wv.loadUrl(url_help_doze_disable);
+                            wv.setWebViewClient(new WebViewClient() {
+                                @Override
+                                public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                                    view.loadUrl(url);
+                                    return true;
+                                }
+                            });
+                            builder.setPositiveButton(getString("close", "Close"), new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    dialog.dismiss();
+                                }
+                            });
+                            builder.setView(wv);
+                            builder.create().show();
+                        } catch (RemoteException e) {
+                            if (DEBUG) e.printStackTrace();
+                        }
+                    }
+                });
+
+        vDozeAmRelax = (CompRowSw) findViewById(R.id.ilDozeAmRelax);
+        vDozeAmRelax.setName(getString("doze_am_relax", "Doze Timing Relax"));
+        vDozeAmRelax.setValue(sipService.rsGetBoolean(Prefs.KEY_DOZE_AM_RELAX, false))
+                .setChangeListener(this);
+        vDozeAmRelax.setIsPremium(true).setRowEnabled(isPrem);
+        if (!isPrem) vDozeAmRelax.setOnClickListener(onClickListenerPremium);
+        if (Build.VERSION.SDK_INT < 23) vDozeAmRelax.setVisibility(View.GONE);
+        vDozeAmRelax.setHelpDrawable(dHelp)
+                .setHelpVisibility(View.VISIBLE)
+                .setHelpOnClick(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        try {
+                            final String url_help_doze_disable = sipService.getLocalString("url_help_doze_am_relax", "file:///android_asset/help_doze_am_relax-en/index.html");
                             AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
                             WebView wv = new WebView(v.getContext());
                             wv.loadUrl(url_help_doze_disable);
@@ -604,7 +721,7 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
                             builder.setNegativeButton(getString("view_in_browser", "View In Browser"), new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
-                                    String url = "http://apps.meowsbox.com/vosp/help_doze_disable-en/";
+                                    String url = "http://apps.meowsbox.com/vosp/help_doze_am_relax-en/";
                                     Intent i = new Intent(Intent.ACTION_VIEW);
                                     i.setData(Uri.parse(url));
                                     startActivity(i);
@@ -808,6 +925,32 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
                     }
                 });
 
+        vUiNotifHide = (CompRowSw) findViewById(R.id.ilSwUiNotifHide);
+        vUiNotifHide.setName(getString("hide_service_notification", "Hide Service Notification"));
+        vUiNotifHide.setValue(sipService.rsGetBoolean(Prefs.KEY_UI_NOTIF_LOW_PRI, false))
+                .setChangeListener(this);
+        if (!isPrem) vUiNotifHide.setOnClickListener(onClickListenerPremium);
+        vUiNotifHide.setIsPremium(true).setRowEnabled(isPrem);
+        vUiNotifHide.setHelpDrawable(dHelp)
+                .setHelpVisibility(View.VISIBLE)
+                .setHelpOnClick(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
+                        builder.setTitle(getString("hide_service_notification", "Hide Service Notification"))
+                                .setMessage(getString("help_hide_service_notification", "Use to hide foreground service notification from lock screen and status bar. May not work on all devices. The default is disabled."))
+                                .setCancelable(true)
+                                .setPositiveButton(getString("close", "Close"), new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        dialog.dismiss();
+                                    }
+                                });
+                        AlertDialog dialog = builder.create();
+                        dialog.show();
+                    }
+                });
+
         vCallRecordAuto = (CompRowSw) findViewById(R.id.ilSwCallRecordAuto);
         vCallRecordAuto.setName(getString("record_all_calls", "Record All Calls"));
         vCallRecordAuto.setValue(sipService.rsGetBoolean(Prefs.KEY_CALL_RECORD_AUTO, false));
@@ -983,7 +1126,49 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
                     }
                 });
 
+        vMediaAudioMicSource = (CompRowEdit) findViewById(R.id.ilMediaAudioMicSource);
+        vMediaAudioMicSource.setName(getString("audio_mic_source", "Audio Mic Source"));
+        vMediaAudioMicSource.setValue(audioSourceToString(PjsipAndroidJniAudio.micSource));
+        vMediaAudioMicSource.setEtEnabled(false);
+        if (!isPrem) vMediaAudioMicSource.setOnClickListener(onClickListenerPremium);
+        else vMediaAudioMicSource.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                PjsipAndroidJniAudio.toggleMicSource();
+                vMediaAudioMicSource.setValue(audioSourceToString(PjsipAndroidJniAudio.micSource));
+            }
+        });
+        vMediaAudioMicSource.setHelpDrawable(dHelp)
+                .setHelpVisibility(View.VISIBLE)
+                .setHelpOnClick(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(contextWrapper);
+                        builder.setTitle(getString("audio_mic_source", "Audio Mic Source"))
+                                .setMessage(getString("help_media_audio_mic_source", "Set the input audio source configuration. Some devices may provide better audio quality with varying settings. The default is Voice Communication"))
+                                .setCancelable(true)
+                                .setPositiveButton(getString("close", "Close"), new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        dialog.dismiss();
+                                    }
+                                });
+                        AlertDialog dialog = builder.create();
+                        dialog.show();
+                    }
+                });
+
         setColors();
+    }
+
+    private String audioSourceToString(int audioSource) {
+        switch (audioSource) {
+            case MediaRecorder.AudioSource.VOICE_RECOGNITION:
+                return getString("mic_voice_recognition", "Voice Recognition");
+            case MediaRecorder.AudioSource.VOICE_COMMUNICATION:
+                return getString("mic_voice_communication", "Voice Communication");
+        }
+        return getString("default", "Default");
     }
 
     private void refreshLicenseState(IRemoteSipService sipService) {
@@ -1047,10 +1232,12 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
         sipService.rsSetBoolean(Prefs.getAccountKey(0, Prefs.KEY_ACCOUNT_SUF_TCP), vTcp.getValue());
         sipService.rsSetBoolean(Prefs.KEY_ONBOOT_ENABLE, vOnBoot.getValue());
         sipService.rsSetBoolean(Prefs.KEY_DOZE_WORKAROUND_ENABLE, vDozeWorkAround.getValue());
-        sipService.rsSetBoolean(Prefs.KEY_DOZE_DISABLE_SU, vDozeDisableRoot.getValue());
+        sipService.rsSetInt(Prefs.KEY_DOZE_CONTROLER_MODE, dozeControllerMode);
+        sipService.rsSetBoolean(Prefs.KEY_DOZE_AM_RELAX, vDozeAmRelax.getValue());
         sipService.rsSetBoolean(Prefs.KEY_WIFI_LOCK_ENABLE, vWifiLock.getValue());
         sipService.rsSetBoolean(Prefs.KEY_VIBRATE_ON_RING, vVibe.getValue());
         sipService.rsSetBoolean(Prefs.KEY_UI_COLOR_NOTIF_DARK, vUiColorNotifDark.getValue());
+        sipService.rsSetBoolean(Prefs.KEY_UI_NOTIF_LOW_PRI, vUiNotifHide.getValue());
         if (sipService.rsGetBoolean(Prefs.KEY_BOOL_ACCEPT_CALL_RECORD_LEGAL, false))
             sipService.rsSetBoolean(Prefs.KEY_CALL_RECORD_AUTO, vCallRecordAuto.getValue());
         sipService.rsSetBoolean(Prefs.KEY_SHOW_ALTERNATE_LAUNCHERS, vAltLaunchers.getValue());
@@ -1086,6 +1273,8 @@ public class SettingsActivity extends Activity implements ServiceBindingControll
         } catch (NumberFormatException e) {
             if (DEBUG) gLog.l(TAG, Logger.lvVerbose, e);
         }
+
+        sipService.rsSetInt(Prefs.KEY_MEDIA_AUDIO_MIC_SOURCE,PjsipAndroidJniAudio.micSource);
 
         sipService.rsCommit(true);
         sipService.accountChangesComitted();

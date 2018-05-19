@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta content="IE=edge" http-equiv="X-UA-Compatible">
+    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+          name="viewport">
+    <title>Doze Timing Relax</title>
+    <!-- FONT -->
+    <link href="http://fonts.googleapis.com/css?family=Roboto:400,300,500,700" rel="stylesheet"
+          type="text/css">
+    <!-- Lazy Ass Formatting -->
+    <style>
+html, body {
+	margin: 0;
+	background-color: #FFF;
+	line-height: 1.6em;
+	background-color: #C9C9C9;
+	max-width: 100%;
+	width: 100%;
+}
+a {
+	text-decoration: underline;
+	color: #007390;
+}
+#content {
+	width: 100% auto;
+	height: auto;
+	margin: auto;
+}
+.box {
+	font-family: 'Roboto', sans-serif;
+	font-size: 1em;
+	font-weight: 300;
+	text-align: justify;
+	color: #090909;
+	margin-top: 2em;
+}
+.box p, .box li, .box ol, .box dl {
+	padding-left: 1em;
+	padding-right: 1em;
+}
+dl dt {
+	font-weight: 500;
+	padding-top: 1em;
+}
+li, dd {
+	line-height: 1.6em;
+}
+li {
+	list-style-type: circle;
+}
+b {
+	font-weight: 500;
+}
+.break {
+	width: auto;
+	clear: both;
+}
+.in {
+	font-size: 1.3em;
+	font-weight: 500;
+	background-color: #E1E1E1;
+	padding: 0.5em 1em 0.5em 1em;
+	border-top: 1px solid #FFFFFF;
+	border-bottom: 1px solid #C9C9C9;
+	color: #00c0ef;
+}
+.intop {
+	font-size: 1.3em;
+	font-weight: 500;
+	margin-top: 0;
+	background-color: #E1E1E1;
+	padding: 0.5em 1em 0.5em 1em;
+	border-top: 1px solid #FFFFFF;
+	border-bottom: 1px solid #C9C9C9;
+	color: #00c0ef;
+}
+.intop a {
+	text-decoration: none;
+	color: #00c0ef;
+}
+hr {
+	width: 100%;
+	border: 1px solid gray;
+}
+img {
+	max-width: 100%;
+	height: auto;
+	width:100%;
+}
+    </style>
+    <!-- End Formatting -->
+</head>
+<body>
+<header>
+    <img src="dialogue_header_short.png">
+    <div style="margin-bottom: -2.4em;">
+    </div>
+</header>
+
+<div id="content">
+    <div class="box">
+        <div class="in">Doze Timing Relax</div>
+        <p>On Android 7 (Nougat) and newer, the app may miss incoming calls when the screen is off 
+           even when whitelisted from battery saving. This app and the SIP protocol have strict
+		   timing and scheduling requirements for reliable communication. While the phone not in use,
+		   Android may override the app and reschedule communications timing leading to missed calls.</p>
+        <p>Enable this option to have the app attempt to relax the Android timing adjustments to maintain
+		reliable communications. To use this option, you must grant the app the WRITE_SECURE_SETTINGS permission.</p>
+        
+        <p>For devices without ROOT:</p>
+        <ul>
+            <li>Download and install the
+                <a href="https://developer.android.com/studio/releases/platform-tools.html">
+                    Google SDK tools here</a> if you have not previously done so.
+            </li>
+            <li>Enable USB DEBUGGING on your phone:
+                <ul>
+                    <li>Open the SETTINGS app on your phone.</li>
+                    <li>Scroll to the bottom and touch DEVELOPER OPTIONS
+                        <ul>
+                            <li>If DEVELOPER OPTIONS is not present:
+                                <ul>
+                                    <li>Touch ABOUT</li>
+                                    <li>Find the BUILD NUMBER</li>
+                                    <li>Repeatedly tap on the BUILD NUMBER until you are prompted
+                                        the hidden developer options has been enabled.
+                                    </li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                    <li>Enable the USB DEBUGGING setting</li>
+                </ul>
+            </li>
+            <li>Connect your phone to your computer with a USB cable</li>
+            <li>If prompted on you Android device about the USB connection, touch ALLOW</li>
+            <li>On your computer:
+                <ul>
+                    <li>Specifically for Windows
+                        <ul>
+                            <li>Click on the START button, open the COMMAND PROMPT</li>
+                        </ul>
+                    </li>
+                    <li>Specifically for Apple Mac or Linux
+                        <ul>
+                            <li>Open the TERMINAL</li>
+                        </ul>
+                    </li>
+                    <li>Type the command exactly as below, including the capitalization,
+                        then press enter:
+                        <ul>
+                            <li>adb -d shell pm grant com.meowsbox.vosp android.permission.WRITE_SECURE_SETTINGS</li>
+                        </ul>
+                    </li>
+                    <li>After pressing enter, no message should appear. If you receive a
+                        message about no devices found:
+                        <ul>
+                            <li>Reconnect the USB cable between the Android device and computer,
+                                ALLOW the connection if prompted.
+                            </li>
+                            <li>Your computer may need specific drivers for your Android device,
+                                <a href="https://developer.android.com/studio/run/oem-usb.html">see
+                                    Google&#39;s help page here</a>.
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+            <li>Disconnect then RESTART/REBOOT your Android device.</li>
+            <li>Congratulations you are done. The above will remain in effect until the
+                app is uninstalled or the device is factory reset. Optionally disable the
+                USB DEBUGGING from step 2 if desired, it is no longer needed.
+            </li>
+        </ul>
+
+    </div>
+</div>
+<footer>
+</footer>
+</body>
+
+</html>

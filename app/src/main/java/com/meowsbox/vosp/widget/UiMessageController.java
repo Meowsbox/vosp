@@ -464,6 +464,99 @@ public class UiMessageController {
                             if (DEBUG) e.printStackTrace();
                         }
                         break;
+                    case InAppNotifications.VALUE_ONCLICK_HINT_DOZE_CONTROLLER_HELP:
+                        try {
+                            final String url = sipService.getLocalString("url_help_doze_disable", "file:///android_asset/help_doze_controller-en/index.html");
+                            view.setOnClickListener(new View.OnClickListener() {
+                                @Override
+                                public void onClick(View v) {
+                                    itemRemove(getItemPositionById(bundle.getInt(LOCAL_MESSAGE_ID)));
+                                    AlertDialog.Builder builder = new AlertDialog.Builder(v.getContext(), R.style.Theme_AppCompat_Dialog);
+                                    WebView wv = new WebView(v.getContext());
+                                    wv.loadUrl(url);
+                                    wv.setWebViewClient(new WebViewClient() {
+                                        @Override
+                                        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                                            view.loadUrl(url);
+                                            return true;
+                                        }
+                                    });
+                                    builder.setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            dialog.dismiss();
+                                        }
+                                    });
+                                    builder.setView(wv);
+                                    builder.create().show();
+                                }
+                            });
+                        } catch (RemoteException e) {
+                            if (DEBUG) e.printStackTrace();
+                        }
+                        break;
+                    case InAppNotifications.VALUE_ONCLICK_HINT_DOZE_AM_RELAX_HELP:
+                        try {
+                            final String url = sipService.getLocalString("url_help_doze_am_relax", "file:///android_asset/help_doze_am_relax-en/index.html");
+                            view.setOnClickListener(new View.OnClickListener() {
+                                @Override
+                                public void onClick(View v) {
+                                    itemRemove(getItemPositionById(bundle.getInt(LOCAL_MESSAGE_ID)));
+                                    AlertDialog.Builder builder = new AlertDialog.Builder(v.getContext(), R.style.Theme_AppCompat_Dialog);
+                                    WebView wv = new WebView(v.getContext());
+                                    wv.loadUrl(url);
+                                    wv.setWebViewClient(new WebViewClient() {
+                                        @Override
+                                        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                                            view.loadUrl(url);
+                                            return true;
+                                        }
+                                    });
+                                    builder.setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            dialog.dismiss();
+                                        }
+                                    });
+                                    builder.setView(wv);
+                                    builder.create().show();
+                                }
+                            });
+                        } catch (RemoteException e) {
+                            if (DEBUG) e.printStackTrace();
+                        }
+                        break;
+                    case InAppNotifications.VALUE_ONCLICK_HINT_DOZE_LIGHT_ONLY_HELP:
+                        try {
+                            final String url = sipService.getLocalString("url_help_doze_light_only", "file:///android_asset/help_doze_light_only-en/index.html");
+                            view.setOnClickListener(new View.OnClickListener() {
+                                @Override
+                                public void onClick(View v) {
+                                    itemRemove(getItemPositionById(bundle.getInt(LOCAL_MESSAGE_ID)));
+                                    AlertDialog.Builder builder = new AlertDialog.Builder(v.getContext(), R.style.Theme_AppCompat_Dialog);
+                                    WebView wv = new WebView(v.getContext());
+                                    wv.loadUrl(url);
+                                    wv.setWebViewClient(new WebViewClient() {
+                                        @Override
+                                        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                                            view.loadUrl(url);
+                                            return true;
+                                        }
+                                    });
+                                    builder.setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            dialog.dismiss();
+                                        }
+                                    });
+                                    builder.setView(wv);
+                                    builder.create().show();
+                                }
+                            });
+                        } catch (RemoteException e) {
+                            if (DEBUG) e.printStackTrace();
+                        }
+                        break;
                     case InAppNotifications.VALUE_ONCLICK_HINT_GOPRO:
                         view.setOnClickListener(new View.OnClickListener() {
                             @Override

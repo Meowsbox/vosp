@@ -10,6 +10,7 @@ package com.meowsbox.vosp.widget;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
+import android.support.annotation.Nullable;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -103,6 +104,11 @@ public class CompRowEdit extends RelativeLayout {
         return this;
     }
 
+    public void setEtEnabled(boolean isEnabled) {
+        etValue.setFocusable(isEnabled);
+        etValue.setClickable(isEnabled);
+    }
+
     public void setInputType(int inputType) {
         etValue.setInputType(inputType);
     }
@@ -140,4 +146,10 @@ public class CompRowEdit extends RelativeLayout {
         });
     }
 
+    @Override
+    public void setOnClickListener(@Nullable OnClickListener l) {
+        super.setOnClickListener(l);
+        etValue.setOnClickListener(l);
+        tvName.setOnClickListener(l);
+    }
 }
